@@ -1,6 +1,6 @@
 {
   "name": "@palantir/compute-module",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Typescript binding for implementing the compute module API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
