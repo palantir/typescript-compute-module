@@ -4,7 +4,7 @@
     "private": true,
     "description": "Node.JS compatible implementation of the Palantir Compute Module specification.",
     "workspaces": [
-        "packages/typescript-compute-module"
+        "typescript-compute-module"
     ],
     "dependencies": {},
     "author": "Palantir Technologies",
