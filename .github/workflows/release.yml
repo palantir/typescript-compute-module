@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: typescript-compute-module
+        working-directory: packages/typescript-compute-module
     permissions:
       contents: read
       id-token: write

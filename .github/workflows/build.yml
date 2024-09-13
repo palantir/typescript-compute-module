@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
         run:
-          working-directory: typescript-compute-module
+          working-directory: packages/typescript-compute-module
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
