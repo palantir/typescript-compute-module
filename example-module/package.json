@@ -10,7 +10,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@palantir/compute-module": "../typescript-compute-module/src",
+    "@palantir/compute-module": "../packages/typescript-compute-module/src",
     "@sinclair/typebox": "^0.32.35",
     "esbuild": "^0.23.0"
   },
