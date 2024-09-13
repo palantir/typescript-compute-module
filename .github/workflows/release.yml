@@ -3,7 +3,7 @@ on:
   release:
     types: [published]
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -13,6 +13,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      - name: Copy root-level markdown files
+        run: cp ../*.md .
       - uses: actions/setup-node@v4
         with:
           node-version: '20.x'
