@@ -1,6 +1,6 @@
 # @palantir/compute-module
 
-[![npm version](https://img.shields.io/npm/v/%palantir%2Fcompute-module?style=flat)](https://www.npmjs.com/package/@palantir/compute-module)
+[![npm version](https://img.shields.io/npm/v/@palantir%2Fcompute-module?style=flat)](https://www.npmjs.com/package/@palantir/compute-module)
 
 Node.JS compatible implementation of the Palantir Compute Module specification.
 
