@@ -13,6 +13,7 @@ import { Static } from "@sinclair/typebox";
 import { SourceCredentials } from "./sources/SourceCredentials";
 import { waitForFile } from "./fs/waitForFile";
 import { ResourceAliases } from "./resources/ResourceAliases";
+import { Environment } from "./environment/types";
 
 export interface ComputeModuleOptions<M extends QueryResponseMapping = any> {
   /**
@@ -59,6 +60,7 @@ export class ComputeModule<M extends QueryResponseMapping> {
   private static RESOURCE_ALIAS_MAP = "RESOURCE_ALIAS_MAP";
   private static DEFAULT_CA_PATH = "DEFAULT_CA_PATH";
   private static MODULE_AUTH_TOKEN = "MODULE_AUTH_TOKEN";
+  private static BUILD2_TOKEN = "BUILD2_TOKEN";
 
   private sourceCredentials: SourceCredentials | null;
   private resourceAliases: ResourceAliases | null;
@@ -196,5 +198,21 @@ export class ComputeModule<M extends QueryResponseMapping> {
       );
     }
     return this.resourceAliases.getAlias(alias);
+  }
+
+  /**
+   * Returns the environment and tokens for the current execution mode
+   */
+  public async getEnvironment(): Promise<Environment> {
+    const buildTokenPath = process.env[ComputeModule.BUILD2_TOKEN];
+    if (buildTokenPath != null) {
+      return {
+        type: "pipelines",
+        buildToken: await waitForFile(buildTokenPath),
+      };
+    }
+    return {
+      type: "functions",
+    };
   }
 }
