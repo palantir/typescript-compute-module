@@ -6,7 +6,6 @@ import {
 } from "./QueryRunner";
 import {
   ComputeModuleApi,
-  ConnectionInformation,
 } from "./api/ComputeModuleApi";
 import { convertJsonSchemaToCustomSchema } from "./api/convertJsonSchematoFoundrySchema";
 import { Static } from "@sinclair/typebox";

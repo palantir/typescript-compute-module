@@ -2,7 +2,19 @@
 
 [![npm version](https://img.shields.io/npm/v/@palantir%2Fcompute-module?style=flat)](https://www.npmjs.com/package/@palantir/compute-module)
 
-Node.JS compatible implementation of the Palantir Compute Module specification.
+Node.JS compatible implementation of the Palantir Compute Module specification.  
+
+- [@palantir/compute-module](#palantircompute-module)
+  - [Functions Mode](#functions-mode)
+    - [Basic usage](#basic-usage)
+    - [Schema registration](#schema-registration)
+  - [Pipelines Mode](#pipelines-mode)
+    - [Retrieving aliases](#retrieving-aliases)
+  - [General usage](#general-usage)
+    - [Retrieving source credentials](#retrieving-source-credentials)
+    - [Retrieving environment details](#retrieving-environment-details)
+  - [Developing the SDK](#developing-the-sdk)
+    - [Building the example module](#building-the-example-module)
 
 ## Functions Mode
 
@@ -44,20 +56,6 @@ myModule.on("addOne", async (n) => n + 1);
 
 ## Pipelines Mode
 
-### Retrieving source credentials
-
-Sources can be used to store secrets for use within a Compute Module, they prevent you from having to put secrets in your container or in plaintext in the job specification. Retrieving a source credential using this library is simple:
-
-```ts
-const myModule = new ComputeModule();
-const myCredential = await myModule.getCredential(
-  "mySourceApiName",
-  "MyCredential"
-);
-```
-
-As a file is mounted at runtime, getCredential returns a promise that will resolve once the file is mounted to avoid race conditions.
-
 ### Retrieving aliases
 
 Compute Modules can interact with resources in their execution environment, within Palantir Foundry these are defined as inputs and outputs on the Compute Module spec. Resource identifiers can be unique to the execution environment, so using aliases allows your code to maintain a static reference to known resources. To receive the identifier for an aliases resource, use the `getResource` method.
@@ -67,6 +65,31 @@ const resourceId = await myModule.getResource("myResourceAlias");
 const result = await someDataFetcherForId(resourceId);
 ```
 
+## General usage
+
+The following features are available in both Pipelines and Functions mode in order to interact with Palantir Foundry:
+
+### Retrieving source credentials
+
+Sources can be used to store secrets for use within a Compute Module, they prevent you from having to put secrets in your container or in plaintext in the job specification. Retrieving a source credential using this library is simple:
+
+```ts
+const myCredential = await myModule.getCredential(
+  "mySourceApiName",
+  "MyCredential"
+);
+```
+
+As a file is mounted at runtime, getCredential returns a promise that will resolve once the file is mounted to avoid race conditions.
+
+### Retrieving environment details
+
+At runtime, you can retrieve details about the execution environment, which is useful for authenticating around services available:
+
+```ts
+const environment = await myModule.getEnvironment();
+const token = environment.type === "pipelines" ? environment.buildToken : undefined;
+```
 ## Developing the SDK
 
 ### Building the example module
