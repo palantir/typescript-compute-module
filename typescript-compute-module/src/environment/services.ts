@@ -4,14 +4,17 @@ import fs from 'fs';
 export enum Service {
     /**
      * Used to push streaming records to Foundry, read more at https://www.palantir.com/docs/foundry/data-connection/push-based-ingestion/
+     * This will likely be formatted as: `https://my-instance.palantirfoundry.com/stream-proxy/api`
      */
     STREAM_PROXY = "stream_proxy",
     /**
      * Used for access to the Foundry API as documented at https://www.palantir.com/docs/foundry/api/general/overview/introduction/
+     * This will likely be formatted as: `https://my-instance.palantirfoundry.com/api`
      */
     API_GATEWAY = "api_gateway",
     /**
      * Used to interact with Foundry's media sets, see https://www.palantir.com/docs/foundry/data-integration/media-sets/
+     * This will likely be formatted as: `https://my-instance.palantirfoundry.com/mio/api`
      */
     MIO = "foundry_mio",
 }
