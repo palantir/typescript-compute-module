@@ -14,6 +14,7 @@ import { SourceCredentials } from "./sources/SourceCredentials";
 import { waitForFile } from "./fs/waitForFile";
 import { ResourceAliases } from "./resources/ResourceAliases";
 import { Environment } from "./environment/types";
+import { getFoundryServices } from "./environment/services";
 
 export interface ComputeModuleOptions<M extends QueryResponseMapping = any> {
   /**
@@ -209,6 +210,7 @@ export class ComputeModule<M extends QueryResponseMapping> {
       return {
         type: "pipelines",
         buildToken: await waitForFile(buildTokenPath),
+        services: getFoundryServices(),
       };
     }
     return {

@@ -3,7 +3,7 @@ import { Logger } from "../../logger";
 import { SourceCredentials, SourceCredentialsFile } from "../SourceCredentials";
 
 // Mock the waitForFile function
-jest.mock( "../../fs/waitForFile");
+jest.mock("../../fs/waitForFile");
 
 describe("SourceCredentials", () => {
     const mockCredentialPath = "/path/to/credentials.json";

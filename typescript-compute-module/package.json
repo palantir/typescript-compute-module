@@ -15,10 +15,12 @@
   },
   "dependencies": {
     "@sinclair/typebox": "^0.32.35",
-    "axios": "^1.6.7"
+    "axios": "^1.6.7",
+    "js-yaml": "^3.14.1"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.11.17",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.3",
