@@ -83,9 +83,8 @@ const myCredential = myModule.getCredential("mySourceApiName", "MyCredential");
 At runtime, you can retrieve details about the execution environment, which is useful for authenticating around services available:
 
 ```ts
-const environment = myModule.getEnvironment();
 const token =
-  environment.type === "pipelines" ? environment.buildToken : undefined;
+  myModule.environment.type === "pipelines" ? myModule.environment.buildToken : undefined;
 ```
 
 ### Retrieving Foundry services

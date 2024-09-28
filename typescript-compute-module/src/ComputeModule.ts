@@ -161,7 +161,7 @@ export class ComputeModule<M extends QueryResponseMapping> {
   }
 
   /**
-   * ompute Modules can interact with resources in their execution environment, within Palantir Foundry these are defined as inputs and outputs on the Compute Module spec. Resource identifiers can be unique to the execution environment,
+   * Compute Modules can interact with resources in their execution environment, within Palantir Foundry these are defined as inputs and outputs on the Compute Module spec. Resource identifiers can be unique to the execution environment,
    * so using aliases allows your code to maintain a static reference to known resources.
    */
   public getResource(alias: string): Resource | null {
@@ -183,7 +183,7 @@ export class ComputeModule<M extends QueryResponseMapping> {
   /**
    * Returns the environment and tokens for the current execution mode
    */
-  public getEnvironment(): Environment {
+  public get environment(): Environment {
     const buildTokenPath = process.env[ComputeModule.BUILD2_TOKEN];
     if (buildTokenPath != null) {
       return {
