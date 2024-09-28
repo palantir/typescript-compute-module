@@ -145,6 +145,57 @@ export class ComputeModule<M extends QueryResponseMapping> {
     return this;
   }
 
+  /**
+   * Sources can be used to store secrets for use within a Compute Module, they prevent you from having to put secrets in your container or in plaintext in the job specification.
+   */
+  public getCredential(
+    sourceApiName: string,
+    credentialName: string
+  ): string | null {
+    if (this.sourceCredentials == null) {
+      throw new Error(
+        "No source credentials mounted. This implies the SOURCE_CREDENTIALS environment variable has not been set, ensure you have set sources mounted on the Compute Module."
+      );
+    }
+    return this.sourceCredentials.getCredential(sourceApiName, credentialName);
+  }
+
+  /**
+   * ompute Modules can interact with resources in their execution environment, within Palantir Foundry these are defined as inputs and outputs on the Compute Module spec. Resource identifiers can be unique to the execution environment,
+   * so using aliases allows your code to maintain a static reference to known resources.
+   */
+  public getResource(alias: string): Resource | null {
+    if (this.resourceAliases == null) {
+      throw new Error(
+        "No resource aliases mounted. This implies the RESOURCE_ALIAS_MAP environment variable has not been set, ensure you have set resources mounted on the Compute Module."
+      );
+    }
+    return this.resourceAliases.getAlias(alias);
+  }
+
+  /**
+   * At runtime, you can retrieve the api paths for known Foundry services, this allows you to call those endpoints without using a source to ingress back into the platform.
+   */
+  public getServiceApi(service: FoundryService): string {
+    return getFoundryServices()[service];
+  }
+
+  /**
+   * Returns the environment and tokens for the current execution mode
+   */
+  public getEnvironment(): Environment {
+    const buildTokenPath = process.env[ComputeModule.BUILD2_TOKEN];
+    if (buildTokenPath != null) {
+      return {
+        type: "pipelines",
+        buildToken: fs.readFileSync(buildTokenPath, "utf-8"),
+      };
+    }
+    return {
+      type: "functions",
+    };
+  }
+
   private initialize() {
     const computeModuleApi = new ComputeModuleApi({
       getJobUri: process.env[ComputeModule.GET_JOB_URI] ?? "",
@@ -181,46 +232,5 @@ export class ComputeModule<M extends QueryResponseMapping> {
     });
 
     this.queryRunner.run(computeModuleApi);
-  }
-
-  public getCredential(
-    sourceApiName: string,
-    credentialName: string
-  ): string | null {
-    if (this.sourceCredentials == null) {
-      throw new Error(
-        "No source credentials mounted. This implies the SOURCE_CREDENTIALS environment variable has not been set, ensure you have set sources mounted on the Compute Module."
-      );
-    }
-    return this.sourceCredentials.getCredential(sourceApiName, credentialName);
-  }
-
-  public getResource(alias: string): Resource | null {
-    if (this.resourceAliases == null) {
-      throw new Error(
-        "No resource aliases mounted. This implies the RESOURCE_ALIAS_MAP environment variable has not been set, ensure you have set resources mounted on the Compute Module."
-      );
-    }
-    return this.resourceAliases.getAlias(alias);
-  }
-
-  public getServiceApi(service: FoundryService): string {
-    return getFoundryServices()[service];
-  }
-
-  /**
-   * Returns the environment and tokens for the current execution mode
-   */
-  public getEnvironment(): Environment {
-    const buildTokenPath = process.env[ComputeModule.BUILD2_TOKEN];
-    if (buildTokenPath != null) {
-      return {
-        type: "pipelines",
-        buildToken: fs.readFileSync(buildTokenPath, "utf-8"),
-      };
-    }
-    return {
-      type: "functions",
-    };
   }
 }

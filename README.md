@@ -78,8 +78,6 @@ Sources can be used to store secrets for use within a Compute Module, they preve
 const myCredential = myModule.getCredential("mySourceApiName", "MyCredential");
 ```
 
-As a file is mounted at runtime, getCredential returns a promise that will resolve once the file is mounted to avoid race conditions.
-
 ### Retrieving environment details
 
 At runtime, you can retrieve details about the execution environment, which is useful for authenticating around services available:
