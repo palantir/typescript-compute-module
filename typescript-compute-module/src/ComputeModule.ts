@@ -4,16 +4,17 @@ import {
   QueryResponseMapping,
   QueryRunner,
 } from "./QueryRunner";
-import {
-  ComputeModuleApi,
-} from "./api/ComputeModuleApi";
+import { ComputeModuleApi } from "./api/ComputeModuleApi";
 import { convertJsonSchemaToCustomSchema } from "./api/convertJsonSchematoFoundrySchema";
 import { Static } from "@sinclair/typebox";
 import { SourceCredentials } from "./sources/SourceCredentials";
-import { waitForFile } from "./fs/waitForFile";
-import { ResourceAliases } from "./resources/ResourceAliases";
+import { Resource, ResourceAliases } from "./resources/ResourceAliases";
 import { Environment } from "./environment/types";
-import { getFoundryServices } from "./environment/services";
+import {
+  FoundryService,
+  getFoundryServices,
+} from "./services/getFoundryServices";
+import * as fs from "fs";
 
 export interface ComputeModuleOptions<M extends QueryResponseMapping = any> {
   /**
@@ -93,9 +94,7 @@ export class ComputeModule<M extends QueryResponseMapping> {
 
     const resourceAliasMap = process.env[ComputeModule.RESOURCE_ALIAS_MAP];
     this.resourceAliases =
-      resourceAliasMap != null
-        ? new ResourceAliases(resourceAliasMap, this.logger)
-        : null;
+      resourceAliasMap != null ? new ResourceAliases(resourceAliasMap) : null;
 
     this.queryRunner = new QueryRunner<M>(
       this.listeners,
@@ -146,16 +145,18 @@ export class ComputeModule<M extends QueryResponseMapping> {
     return this;
   }
 
-  private async initialize() {
+  private initialize() {
     const computeModuleApi = new ComputeModuleApi({
       getJobUri: process.env[ComputeModule.GET_JOB_URI] ?? "",
       postResultUri: process.env[ComputeModule.POST_RESULT_URI] ?? "",
       postSchemaUri: process.env[ComputeModule.POST_SCHEMA_URI] ?? "",
-      trustStore: waitForFile(
-        process.env[ComputeModule.DEFAULT_CA_PATH] ?? ""
+      trustStore: fs.readFileSync(
+        process.env[ComputeModule.DEFAULT_CA_PATH] ?? "",
+        "utf-8"
       ),
-      moduleAuthToken: waitForFile(
-        process.env[ComputeModule.MODULE_AUTH_TOKEN] ?? ""
+      moduleAuthToken: fs.readFileSync(
+        process.env[ComputeModule.MODULE_AUTH_TOKEN] ?? "",
+        "utf-8"
       ),
     });
 
@@ -182,7 +183,10 @@ export class ComputeModule<M extends QueryResponseMapping> {
     this.queryRunner.run(computeModuleApi);
   }
 
-  public async getCredential(sourceApiName: string, credentialName: string) {
+  public getCredential(
+    sourceApiName: string,
+    credentialName: string
+  ): string | null {
     if (this.sourceCredentials == null) {
       throw new Error(
         "No source credentials mounted. This implies the SOURCE_CREDENTIALS environment variable has not been set, ensure you have set sources mounted on the Compute Module."
@@ -191,7 +195,7 @@ export class ComputeModule<M extends QueryResponseMapping> {
     return this.sourceCredentials.getCredential(sourceApiName, credentialName);
   }
 
-  public async getResource(alias: string) {
+  public getResource(alias: string): Resource | null {
     if (this.resourceAliases == null) {
       throw new Error(
         "No resource aliases mounted. This implies the RESOURCE_ALIAS_MAP environment variable has not been set, ensure you have set resources mounted on the Compute Module."
@@ -200,16 +204,19 @@ export class ComputeModule<M extends QueryResponseMapping> {
     return this.resourceAliases.getAlias(alias);
   }
 
+  public getServiceApi(service: FoundryService): string {
+    return getFoundryServices()[service];
+  }
+
   /**
    * Returns the environment and tokens for the current execution mode
    */
-  public async getEnvironment(): Promise<Environment> {
+  public getEnvironment(): Environment {
     const buildTokenPath = process.env[ComputeModule.BUILD2_TOKEN];
     if (buildTokenPath != null) {
       return {
         type: "pipelines",
-        buildToken: await waitForFile(buildTokenPath),
-        services: getFoundryServices(),
+        buildToken: fs.readFileSync(buildTokenPath, "utf-8"),
       };
     }
     return {

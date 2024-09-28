@@ -1,5 +1,4 @@
-import { waitForJsonFile } from "../fs/waitForFile";
-import { Logger } from "../logger";
+import * as fs from "fs";
 
 export interface ResourceAliasesFile {
   [alias: string]: Resource;
@@ -11,24 +10,17 @@ export interface Resource {
 }
 
 export class ResourceAliases {
-  private _resourceAliasesPromise: Promise<ResourceAliasesFile> | null = null;
+  private _resourceAliases: ResourceAliasesFile | null = null;
 
-  constructor(private resourceAliasesPath: string, private logger?: Logger) {}
+  constructor(private resourceAliasesPath: string) {}
 
-  public async getAlias(alias: string): Promise<Resource | null> {
-    const resourceAliases = await this.resourceAliases;
-    return resourceAliases[alias] ?? null;
+  public getAlias(alias: string): Resource | null {
+    return this.resourceAliases?.[alias] ?? null;
   }
 
-  private get resourceAliases(): Promise<ResourceAliasesFile> {
-    return (this._resourceAliasesPromise ??= this.loadResourceAliases());
-  }
-
-  private async loadResourceAliases(): Promise<ResourceAliasesFile> {
-    const content = await waitForJsonFile<ResourceAliasesFile>(
-      this.resourceAliasesPath
-    );
-    this.logger?.log(`Loaded resource aliases: ${JSON.stringify(content)}`);
-    return content;
+  private get resourceAliases(): ResourceAliasesFile {
+    return (this._resourceAliases ??= JSON.parse(
+      fs.readFileSync(this.resourceAliasesPath, "utf-8")
+    ));
   }
 }
