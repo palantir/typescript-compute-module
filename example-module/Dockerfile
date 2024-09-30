@@ -11,14 +11,14 @@ COPY typescript-compute-module/package*.json ./typescript-compute-module/
 COPY typescript-compute-module/src ./typescript-compute-module/src
 
 # Install dependencies for compute module
-RUN cd typescript-compute-module && npm ci
+RUN cd typescript-compute-module && npm install
 
 # Now copy the example-module files and install its dependencies
 COPY example-module/package*.json ./example-module/
 COPY example-module/src ./example-module/src
 
 # Install example-module dependencies
-RUN cd example-module && npm ci
+RUN cd example-module && npm install
 RUN cd example-module && npm run build
 
 # Start a new stage for the production image

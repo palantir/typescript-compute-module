@@ -4,16 +4,17 @@ import {
   QueryResponseMapping,
   QueryRunner,
 } from "./QueryRunner";
-import {
-  ComputeModuleApi,
-} from "./api/ComputeModuleApi";
+import { ComputeModuleApi } from "./api/ComputeModuleApi";
 import { convertJsonSchemaToCustomSchema } from "./api/convertJsonSchematoFoundrySchema";
 import { Static } from "@sinclair/typebox";
 import { SourceCredentials } from "./sources/SourceCredentials";
-import { waitForFile } from "./fs/waitForFile";
-import { ResourceAliases } from "./resources/ResourceAliases";
+import { Resource, ResourceAliases } from "./resources/ResourceAliases";
 import { Environment } from "./environment/types";
-import { getFoundryServices } from "./environment/services";
+import {
+  FoundryService,
+  getFoundryServices,
+} from "./services/getFoundryServices";
+import * as fs from "fs";
 
 export interface ComputeModuleOptions<M extends QueryResponseMapping = any> {
   /**
@@ -93,9 +94,7 @@ export class ComputeModule<M extends QueryResponseMapping> {
 
     const resourceAliasMap = process.env[ComputeModule.RESOURCE_ALIAS_MAP];
     this.resourceAliases =
-      resourceAliasMap != null
-        ? new ResourceAliases(resourceAliasMap, this.logger)
-        : null;
+      resourceAliasMap != null ? new ResourceAliases(resourceAliasMap) : null;
 
     this.queryRunner = new QueryRunner<M>(
       this.listeners,
@@ -146,16 +145,69 @@ export class ComputeModule<M extends QueryResponseMapping> {
     return this;
   }
 
-  private async initialize() {
+  /**
+   * Sources can be used to store secrets for use within a Compute Module, they prevent you from having to put secrets in your container or in plaintext in the job specification.
+   */
+  public getCredential(
+    sourceApiName: string,
+    credentialName: string
+  ): string | null {
+    if (this.sourceCredentials == null) {
+      throw new Error(
+        "No source credentials mounted. This implies the SOURCE_CREDENTIALS environment variable has not been set, ensure you have set sources mounted on the Compute Module."
+      );
+    }
+    return this.sourceCredentials.getCredential(sourceApiName, credentialName);
+  }
+
+  /**
+   * Compute Modules can interact with resources in their execution environment, within Palantir Foundry these are defined as inputs and outputs on the Compute Module spec. Resource identifiers can be unique to the execution environment,
+   * so using aliases allows your code to maintain a static reference to known resources.
+   */
+  public getResource(alias: string): Resource | null {
+    if (this.resourceAliases == null) {
+      throw new Error(
+        "No resource aliases mounted. This implies the RESOURCE_ALIAS_MAP environment variable has not been set, ensure you have set resources mounted on the Compute Module."
+      );
+    }
+    return this.resourceAliases.getAlias(alias);
+  }
+
+  /**
+   * At runtime, you can retrieve the api paths for known Foundry services, this allows you to call those endpoints without using a source to ingress back into the platform.
+   */
+  public getServiceApi(service: FoundryService): string {
+    return getFoundryServices()[service];
+  }
+
+  /**
+   * Returns the environment and tokens for the current execution mode
+   */
+  public get environment(): Environment {
+    const buildTokenPath = process.env[ComputeModule.BUILD2_TOKEN];
+    if (buildTokenPath != null) {
+      return {
+        type: "pipelines",
+        buildToken: fs.readFileSync(buildTokenPath, "utf-8"),
+      };
+    }
+    return {
+      type: "functions",
+    };
+  }
+
+  private initialize() {
     const computeModuleApi = new ComputeModuleApi({
       getJobUri: process.env[ComputeModule.GET_JOB_URI] ?? "",
       postResultUri: process.env[ComputeModule.POST_RESULT_URI] ?? "",
       postSchemaUri: process.env[ComputeModule.POST_SCHEMA_URI] ?? "",
-      trustStore: waitForFile(
-        process.env[ComputeModule.DEFAULT_CA_PATH] ?? ""
+      trustStore: fs.readFileSync(
+        process.env[ComputeModule.DEFAULT_CA_PATH] ?? "",
+        "utf-8"
       ),
-      moduleAuthToken: waitForFile(
-        process.env[ComputeModule.MODULE_AUTH_TOKEN] ?? ""
+      moduleAuthToken: fs.readFileSync(
+        process.env[ComputeModule.MODULE_AUTH_TOKEN] ?? "",
+        "utf-8"
       ),
     });
 
@@ -180,40 +232,5 @@ export class ComputeModule<M extends QueryResponseMapping> {
     });
 
     this.queryRunner.run(computeModuleApi);
-  }
-
-  public async getCredential(sourceApiName: string, credentialName: string) {
-    if (this.sourceCredentials == null) {
-      throw new Error(
-        "No source credentials mounted. This implies the SOURCE_CREDENTIALS environment variable has not been set, ensure you have set sources mounted on the Compute Module."
-      );
-    }
-    return this.sourceCredentials.getCredential(sourceApiName, credentialName);
-  }
-
-  public async getResource(alias: string) {
-    if (this.resourceAliases == null) {
-      throw new Error(
-        "No resource aliases mounted. This implies the RESOURCE_ALIAS_MAP environment variable has not been set, ensure you have set resources mounted on the Compute Module."
-      );
-    }
-    return this.resourceAliases.getAlias(alias);
-  }
-
-  /**
-   * Returns the environment and tokens for the current execution mode
-   */
-  public async getEnvironment(): Promise<Environment> {
-    const buildTokenPath = process.env[ComputeModule.BUILD2_TOKEN];
-    if (buildTokenPath != null) {
-      return {
-        type: "pipelines",
-        buildToken: await waitForFile(buildTokenPath),
-        services: getFoundryServices(),
-      };
-    }
-    return {
-      type: "functions",
-    };
   }
 }

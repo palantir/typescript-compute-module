@@ -6,21 +6,29 @@ export interface ConnectionInformation {
   getJobUri: string; // GET_JOB_URI
   postResultUri: string; // POST_RESULT_URI
   postSchemaUri: string; // POST_SCHEMA_URI
-  trustStore: Promise<string>; // DEFAULT_CA_PATH
-  moduleAuthToken: Promise<string>; // MODULE_AUTH_TOKEN
+  trustStore: string; // DEFAULT_CA_PATH
+  moduleAuthToken: string; // MODULE_AUTH_TOKEN
 }
 
 /**
  * API for interacting with the runtime.
  */
 export class ComputeModuleApi {
-  private axiosInstance: axios.AxiosInstance | null = null;
+  private axiosInstance: axios.AxiosInstance;
 
-  constructor(private connectionInformation: ConnectionInformation) {}
+  constructor(private connectionInformation: ConnectionInformation) {
+    this.axiosInstance = axios.create({
+      httpsAgent: new https.Agent({
+        ca: this.connectionInformation.trustStore,
+      }),
+      headers: {
+        "Module-Auth-Token": this.connectionInformation.moduleAuthToken,
+      },
+    });
+  }
 
-  public getJobRequest = async () => {
-    const instance = await this.getAxios();
-    return instance.get<{
+  public getJobRequest = () =>
+    this.axiosInstance.get<{
       type: "computeModuleJobV1";
       computeModuleJobV1: {
         jobId: string;
@@ -28,37 +36,18 @@ export class ComputeModuleApi {
         query: any;
       };
     }>(this.connectionInformation.getJobUri);
-  };
 
-  public postResult = async <ResponseType>(
-    jobId: string,
-    response: ResponseType
-  ) => {
-    const instance = await this.getAxios();
-    return instance.post(this.connectionInformation.postResultUri + "/" + jobId, response, {
-      headers: {
-        "Content-Type": "application/octet-stream",
-      },
-    });
-  };
-
-  public postSchema = async (schemas: Schema[]) => {
-    const instance = await this.getAxios();
-    return instance.post(this.connectionInformation.postSchemaUri, schemas);
-  };
-
-  private getAxios = async () => {
-    if (this.axiosInstance == null) {
-      this.axiosInstance = axios.create({
-        httpsAgent: new https.Agent({
-          ca: await this.connectionInformation.trustStore,
-        }),
+  public postResult = <ResponseType>(jobId: string, response: ResponseType) =>
+    this.axiosInstance.post(
+      this.connectionInformation.postResultUri + "/" + jobId,
+      response,
+      {
         headers: {
-          "Module-Auth-Token": await this.connectionInformation.moduleAuthToken,
+          "Content-Type": "application/octet-stream",
         },
-      });
-    }
-    return this.axiosInstance;
-  };
+      }
+    );
 
+  public postSchema = (schemas: Schema[]) =>
+    this.axiosInstance.post(this.connectionInformation.postSchemaUri, schemas);
 }
