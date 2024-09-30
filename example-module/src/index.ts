@@ -52,8 +52,8 @@ if (computeModule.environment.type === "pipelines") {
     computeModule.getResource("output")
   );
   console.log(
-    `Logging credential "TestSecret" on "testApi"`,
-    computeModule.getCredential("testApi", "TestSecret")
+    `Logging credential "TestSecret" on "TestApi"`,
+    computeModule.getCredential("TestApi", "TestSecret")
   );
   console.log(
     `Logging streamProxyApi location`,

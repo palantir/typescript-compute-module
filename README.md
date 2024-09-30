@@ -75,7 +75,7 @@ The following features are available in both Pipelines and Functions mode in ord
 Sources can be used to store secrets for use within a Compute Module, they prevent you from having to put secrets in your container or in plaintext in the job specification. Retrieving a source credential using this library is simple:
 
 ```ts
-const myCredential = myModule.getCredential("mySourceApiName", "MyCredential");
+const myCredential = myModule.getCredential("MySourceApiName", "MyCredential");
 ```
 
 ### Retrieving environment details
