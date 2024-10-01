@@ -27,8 +27,8 @@ This library can be used untyped with vanilla JavaScript to generate registerabl
 import { ComputeModule } from "@palantir/compute-module";
 
 new ComputeModule()
-  .on("addOne", async (n) => n + 1)
-  .on("stringify", async (n) => "" + n)
+  .register("addOne", async (n) => n + 1)
+  .register("stringify", async (n) => "" + n)
   .default(() => ({ error: "Unsupported query name" }));
 ```
 
@@ -52,7 +52,7 @@ const myModule = new ComputeModule({
   },
 });
 
-myModule.on("addOne", async (n) => n + 1);
+myModule.register("addOne", async (n) => n + 1);
 ```
 
 ## Pipelines Mode
