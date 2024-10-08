@@ -3,7 +3,6 @@ import { Type } from "@sinclair/typebox";
 
 const computeModule = new ComputeModule({
   logger: console,
-  isAutoRegistered: false,
   definitions: {
     getEnv: {
       input: Type.Object({}),
