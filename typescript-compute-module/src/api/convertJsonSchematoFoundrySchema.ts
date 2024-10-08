@@ -25,53 +25,51 @@ export function convertJsonSchemaToCustomSchema(
   output: SupportedTypeboxTypes
 ): Schema {
   return {
-    name: schemaName,
-    inputType:
-      input != null
-        ? convertPropertiesToStructType(input).structType
-        : { fields: [] },
-    outputType: convertJsonType(output),
-  };
-}
-
-function convertPropertiesToStructType({
-  properties,
-}: TObject): Schema.StructType {
-  const entries: Schema.Entry[] = Object.keys(properties).map((key) => ({
-    name: key,
-    type: convertJsonType(properties[key]),
-  }));
-  return {
-    type: "structType",
-    structType: {
-      fields: entries,
-    },
+    functionName: schemaName,
+    inputs: input != null ? Object.keys(input.properties).map((key) => ({
+      name: key,
+      required: input.required?.includes(key) ?? false,
+      dataType: convertJsonType(input.properties[key]),
+      constraints: [],
+    })) : [],
+    output: {
+      type: "single",
+      single: { dataType: convertJsonType(output) },
+    }
   };
 }
 
 function convertJsonType(jsonType: TSchema): Schema.DataType {
   if (TypeGuard.IsObject(jsonType)) {
     return {
-      type: "complexType",
-      complexType: convertPropertiesToStructType(jsonType),
-    };
+      type: "anonymousCustomType",
+      anonymousCustomType: {
+        fields: Object.keys(jsonType.properties).reduce(
+          (acc, key) => ({
+            ...acc,
+            [key]: convertJsonType(jsonType.properties[key]),
+          }),
+          {}
+        ),
+      },
+    }
   } else if (TypeGuard.IsArray(jsonType)) {
     return {
-      type: "complexType",
-      complexType: {
-        type: "listType",
-        elementType: convertJsonType(jsonType.items),
+      type: "list",
+      list: {
+        elementTypes: convertJsonType(jsonType.items),
       },
     };
   } else if (TypeGuard.IsBoolean(jsonType)) {
-    return { type: "primitiveType", primitiveType: "BOOL" };
+    return { type: "boolean", boolean: {} };
   } else if (TypeGuard.IsInteger(jsonType)) {
-    return { type: "primitiveType", primitiveType: "INT" };
+    return { type: "integer", integer: {} };
   } else if (TypeGuard.IsNumber(jsonType)) {
-    return { type: "primitiveType", primitiveType: "FLOAT" };
+    return { type: "float", float: {} };
   } else if (TypeGuard.IsString(jsonType)) {
-    return { type: "primitiveType", primitiveType: "STRING" };
+    return { type: "string", string: {} };
   } else {
-    return { type: "unknownType", unknownType: {} };
+    // Default to string on failure
+    return { type: "string", string: {} };
   }
 }

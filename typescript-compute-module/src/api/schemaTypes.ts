@@ -1,41 +1,62 @@
 export interface Schema {
-  name: string;
-  inputType: Schema.StructType["structType"];
-  outputType: Schema.DataType;
+  functionName: string;
+  inputs: Schema.FunctionInputType[]
+  output: Schema.FunctionOutputType;
 }
 
 export namespace Schema {
-  export interface Entry {
+
+  export interface FunctionInputType {
     name: string;
-    type: DataType;
+    required: boolean;
+    description?: string;
+    dataType: DataType;
+    // Required for the query to be valid
+    constraints: [];
   }
 
-  export interface StructType {
-    type: "structType";
-    structType: {
-      fields: Entry[];
+  export interface FunctionOutputType {
+    type: "single";
+    single: {
+      dataType: DataType;
+    }
+  }
+
+  export type DataType = BooleanType | IntegerType | FloatType | StringType | ListType | AnonymousCustomType;
+
+  export type BooleanType = {
+    type: "boolean";
+    boolean: {};
+  };
+
+  export type IntegerType = {
+    type: "integer";
+    integer: {};
+  };
+
+  export type FloatType = {
+    type: "float";
+    float: {};
+  };
+
+  export type StringType = {
+    type: "string";
+    string: {};
+  };
+
+  export type ListType = {
+    type: "list";
+    list: {
+      elementTypes: DataType;
     };
   }
 
-  export interface ListType {
-    type: "listType";
-    elementType: DataType;
-  }
-
-  export type DataType = PrimitiveType | ComplexType | UnknownType;
-
-  export interface PrimitiveType {
-    type: "primitiveType";
-    primitiveType: "BOOL" | "INT" | "FLOAT" | "STRING";
-  }
-
-  export interface ComplexType {
-    type: "complexType";
-    complexType: StructType | ListType;
-  }
-
-  export interface UnknownType {
-    type: "unknownType";
-    unknownType: {};
+  export type AnonymousCustomType = {
+      type: "anonymousCustomType";
+      anonymousCustomType: {
+        fields: {
+          [key: string]: DataType;
+        }
+      };
   }
 }

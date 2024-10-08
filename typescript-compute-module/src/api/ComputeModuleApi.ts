@@ -1,6 +1,6 @@
 import https from "https";
 import { Schema } from "./schemaTypes";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 
 export interface ConnectionInformation {
   getJobUri: string; // GET_JOB_URI
@@ -49,5 +49,20 @@ export class ComputeModuleApi {
     );
 
   public postSchema = (schemas: Schema[]) =>
-    this.axiosInstance.post(this.connectionInformation.postSchemaUri, schemas);
+    this.axiosInstance.post(this.connectionInformation.postSchemaUri, schemas, {
+      headers: {
+        "Content-Type": "application/json",
+      }
+    });
+}
+
+export function formatAxiosErrorResponse(error: AxiosError){
+  return `
+    Error running module - Network Error: ${error.response?.status}
+    Status: ${error.status}
+    Message: ${error.message}
+    StatusText: ${error.response?.statusText}
+    Data:
+    ${JSON.stringify(error.response?.data, null, 2)}
+  `
 }
