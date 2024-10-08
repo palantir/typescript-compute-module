@@ -18,21 +18,26 @@ describe("Type tests", () => {
       EXAMPLE_DEFINITION.isFirstName.output
     );
     expect(schema).toStrictEqual({
-      name: "isFirstName",
-      inputType: {
-        fields: [
-          {
-            name: "firstName",
-            type: {
-              type: "primitiveType",
-              primitiveType: "STRING",
-            },
+      functionName: "isFirstName",
+      inputs: [
+        {
+          name: "firstName",
+          required: true,
+          dataType: {
+            type: "string",
+            string: {},
           },
-        ],
-      },
-      outputType: {
-        type: "primitiveType",
-        primitiveType: "BOOL",
+          constraints: [],
+        }
+      ],
+      output: {
+        type: "single",
+        single: {
+          dataType: {
+            type: "boolean",
+            boolean: {},
+          }
+        }
       },
     });
   });

@@ -4,7 +4,7 @@ import {
   QueryResponseMapping,
   QueryRunner,
 } from "./QueryRunner";
-import { ComputeModuleApi } from "./api/ComputeModuleApi";
+import { ComputeModuleApi, formatAxiosErrorResponse } from "./api/ComputeModuleApi";
 import { convertJsonSchemaToCustomSchema } from "./api/convertJsonSchematoFoundrySchema";
 import { Static } from "@sinclair/typebox";
 import { SourceCredentials } from "./sources/SourceCredentials";
@@ -15,6 +15,7 @@ import {
   getFoundryServices,
 } from "./services/getFoundryServices";
 import * as fs from "fs";
+import { isAxiosError } from "axios";
 
 export interface ComputeModuleOptions<M extends QueryResponseMapping = any> {
   /**
@@ -222,12 +223,15 @@ export class ComputeModule<M extends QueryResponseMapping> {
               query.output
             )
         );
-        this.logger?.info(`Posting schemas: ${JSON.stringify(schemas)}`);
-        try {
-          computeModuleApi.postSchema(schemas);
-        } catch (e) {
-          this.logger?.error(`Error posting schemas: ${e}`);
-        }
+
+        this.logger?.info(`Posting schemas:${JSON.stringify(schemas)}`);
+        computeModuleApi.postSchema(schemas).catch((e) => {
+          if (isAxiosError(e)) {
+            this.logger?.error(
+              `Error posting schemas: ${formatAxiosErrorResponse(e)}`
+            );
+          }
+        });
       }
     });
 

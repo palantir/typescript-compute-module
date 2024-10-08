@@ -1,7 +1,7 @@
-import { isAxiosError } from "axios";
+import { AxiosError, HttpStatusCode, isAxiosError } from "axios";
 import { Logger } from "./logger";
 import { Static, TObject } from "@sinclair/typebox";
-import { ComputeModuleApi } from "./api/ComputeModuleApi";
+import { ComputeModuleApi, formatAxiosErrorResponse } from "./api/ComputeModuleApi";
 import { SupportedTypeboxTypes } from "./api/convertJsonSchematoFoundrySchema";
 
 export interface QueryResponseMapping {
@@ -33,12 +33,12 @@ export class QueryRunner<M extends QueryResponseMapping> {
       try {
         const jobRequest = await computeModuleApi.getJobRequest();
 
-        if (jobRequest.status === 200) {
+        if (!this.isResponsive && jobRequest.status.toString().startsWith("2")) {
           // If this is the first job, set the module as responsive
-          if (!this.isResponsive) {
             this.setResponsive();
-          }
+        }
 
+        if (jobRequest.status === HttpStatusCode.Ok) {
           const { query, queryType, jobId } =
             jobRequest.data.computeModuleJobV1;
           this.logger?.info(`Job received - ID: ${jobId} Query: ${queryType}`);
@@ -63,7 +63,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
       } catch (e) {
         if (isAxiosError(e)) {
           this.logger?.error(
-            `Error running module - Network Error: ${e.response?.status} ${e.response?.statusText}`
+            `Error running module - Network Error: ${formatAxiosErrorResponse(e)}`
           );
         } else {
           this.logger?.error(`Error running module: ${e}`);
