@@ -7,7 +7,9 @@ const computeModule = new ComputeModule({
   definitions: {
     getEnv: {
       input: Type.Object({}),
-      output: Type.Object({}),
+      output: Type.Object({
+        SERVICE_HOST: Type.String(),
+      }),
     },
     wait: {
       input: Type.Object({
@@ -72,7 +74,9 @@ if (computeModule.environment.type === "pipelines") {
       });
     })
     .register("getEnv", async () => {
-      return process.env;
+      return {
+        SERVICE_HOST: process.env.SERVICE_HOST ?? "Not found",
+      };
     })
     .register("getCredential", async (v) => {
       return (
