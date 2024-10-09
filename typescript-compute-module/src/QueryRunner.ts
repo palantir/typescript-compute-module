@@ -26,7 +26,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
     }>,
     private defaultListener?: (query: any, queryType: string) => Promise<any>,
     private readonly logger?: Logger
-  ) {}
+  ) { }
 
   async run(computeModuleApi: ComputeModuleApi) {
     while (true) {
@@ -35,7 +35,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
 
         if (!this.isResponsive && jobRequest.status.toString().startsWith("2")) {
           // If this is the first job, set the module as responsive
-            this.setResponsive();
+          this.setResponsive();
         }
 
         if (jobRequest.status === HttpStatusCode.Ok) {
@@ -61,13 +61,16 @@ export class QueryRunner<M extends QueryResponseMapping> {
           }
         }
       } catch (e) {
-        if (isAxiosError(e)) {
-          this.logger?.error(
-            `Error running module - Network Error: ${formatAxiosErrorResponse(e)}`
-          );
-        } else {
+        if (!isAxiosError(e)) {
           this.logger?.error(`Error running module: ${e}`);
+          continue;
         }
+        if (!this.isResponsive && e.code === "ECONNREFUSED") {
+          continue;
+        }
+        this.logger?.error(
+          `Error running module - Network Error: ${formatAxiosErrorResponse(e)}`
+        );
       }
     }
   }

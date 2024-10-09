@@ -40,7 +40,7 @@ export class ComputeModuleApi {
   public postResult = <ResponseType>(jobId: string, response: ResponseType) =>
     this.axiosInstance.post(
       this.connectionInformation.postResultUri + "/" + jobId,
-      typeof response === "number" ? response.toString() : response,
+      JSON.stringify(response),
       {
         headers: {
           "Content-Type": "application/octet-stream",
