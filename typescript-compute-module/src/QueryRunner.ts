@@ -3,6 +3,7 @@ import { Logger } from "./logger";
 import { Static, TObject } from "@sinclair/typebox";
 import { ComputeModuleApi, formatAxiosErrorResponse } from "./api/ComputeModuleApi";
 import { SupportedTypeboxTypes } from "./api/convertJsonSchematoFoundrySchema";
+import { PassThrough, Writable } from "stream";
 
 export interface QueryResponseMapping {
   [queryType: string]: {
@@ -11,7 +12,20 @@ export interface QueryResponseMapping {
   };
 }
 
-export type QueryListener<M extends QueryResponseMapping> = <T extends keyof M>(
+export type QueryListener<M extends QueryResponseMapping> = {
+  type: "response";
+  listener: ResponseQueryListener<M>;
+} | {
+  type: "streaming";
+  listener: StreamingQueryListener<M>;
+};
+
+export type StreamingQueryListener<M extends QueryResponseMapping> = <T extends keyof M>(
+  message: Static<M[T]["input"]>,
+  responseStream: Writable
+) => void;
+
+export type ResponseQueryListener<M extends QueryResponseMapping> = <T extends keyof M>(
   message: Static<M[T]["input"]>
 ) => Promise<Static<M[T]["output"]>>;
 
@@ -44,10 +58,14 @@ export class QueryRunner<M extends QueryResponseMapping> {
           this.logger?.info(`Job received - ID: ${jobId} Query: ${queryType}`);
           const listener = this.listeners[queryType];
 
-          if (listener != null) {
-            listener(query).then((response) =>
+          if (listener?.type === "response") {
+            listener.listener(query).then((response) =>
               computeModuleApi.postResult(jobId, response)
             );
+          } else if (listener?.type === "streaming") {
+            const writable = new PassThrough();
+            listener.listener(query, writable);
+            computeModuleApi.postStreamingResult(jobId, writable);
           } else if (this.defaultListener != null) {
             this.defaultListener(query, queryType).then((response) =>
               computeModuleApi.postResult(

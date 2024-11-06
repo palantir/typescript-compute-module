@@ -7,6 +7,7 @@ Node.JS compatible implementation of the Palantir Compute Module specification.
 - [@palantir/compute-module](#palantircompute-module)
   - [Functions Mode](#functions-mode)
     - [Basic usage](#basic-usage)
+    - [Streaming usage](#streaming-usage)
     - [Schema registration](#schema-registration)
   - [Pipelines Mode](#pipelines-mode)
     - [Retrieving aliases](#retrieving-aliases)
@@ -31,6 +32,23 @@ new ComputeModule()
   .register("stringify", async ({ n }) => "" + n)
   .default(() => ({ error: "Unsupported query name" }));
 ```
+
+### Streaming usage
+
+You can stream responses back from the compute module, rather than all at once. Type safety is not provided on the response here as the SDK cannot validate that the stream was of the correct type, we recommend that you only set your return value to String in these cases.
+
+```ts
+import { ComputeModule } from "@palantir/compute-module";
+
+new ComputeModule()
+  .registerStreaming("hello", async ({ world }, writeable: Writeable) => {
+    writeable.write("Hello");
+    writeable.write(world);
+    writeable.end();
+  });
+  .default(() => ({ error: "Unsupported query name" }));
+```
+
 
 ### Schema registration
 

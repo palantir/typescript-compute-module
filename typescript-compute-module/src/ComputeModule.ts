@@ -1,8 +1,8 @@
 import { Logger, loggerToInstanceLogger } from "./logger";
 import {
-  QueryListener,
   QueryResponseMapping,
   QueryRunner,
+  QueryListener,
 } from "./QueryRunner";
 import { ComputeModuleApi, formatAxiosErrorResponse } from "./api/ComputeModuleApi";
 import { convertJsonSchemaToCustomSchema } from "./api/convertJsonSchematoFoundrySchema";
@@ -16,6 +16,7 @@ import {
 } from "./services/getFoundryServices";
 import * as fs from "fs";
 import { isAxiosError } from "axios";
+import { Writable } from "stream";
 
 export interface ComputeModuleOptions<M extends QueryResponseMapping = any> {
   /**
@@ -121,7 +122,24 @@ export class ComputeModule<M extends QueryResponseMapping> {
     queryName: T,
     listener: (data: Static<M[T]["input"]>) => Promise<Static<M[T]["output"]>>
   ) {
-    this.listeners[queryName] = listener;
+    this.listeners[queryName] = { type: "response", listener };
+    return this;
+  }
+
+  /**
+   * Adds a listener for a specific query, only one streaming listener can be added per query
+   * @param queryName Foundry query name to respond to
+   * @param listener Function to run when the query is received
+   * @returns
+   */
+  public registerStreaming<T extends keyof M>(
+    queryName: T,
+    listener: (
+      data: Static<M[T]["input"]>,
+      writable: Writable
+    ) => void
+  ) {
+    this.listeners[queryName] = { type: "streaming", listener };
     return this;
   }
 
