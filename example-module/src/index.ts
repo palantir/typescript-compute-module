@@ -38,6 +38,10 @@ const computeModule = new ComputeModule({
       input: Type.Object({}),
       output: Type.String(),
     },
+    streamable: {
+      input: Type.Object({}),
+      output: Type.String(),
+    }
   },
 });
 
@@ -85,5 +89,15 @@ if (computeModule.environment.type === "pipelines") {
     .register("openFile", async (v) => {
       const fileContents = require("fs").readFileSync(v.path, "utf-8");
       return fileContents;
+    }).registerStreaming("streamable", (input, writeable) => {
+      let count = 10;
+      let interval = setInterval(() => {
+        writeable.write("Hello, World!");
+        count--;
+        if (count === 0) {
+          clearInterval(interval);
+          writeable.end();
+        }
+      }, 1000);
     });
 }

@@ -1,6 +1,7 @@
 import https from "https";
 import { Schema } from "./schemaTypes";
 import axios, { AxiosError } from "axios";
+import { Writable } from "stream";
 
 export interface ConnectionInformation {
   getJobUri: string; // GET_JOB_URI
@@ -47,6 +48,19 @@ export class ComputeModuleApi {
         },
       }
     );
+
+  public postStreamingResult = (jobId: string, response: Writable) => {
+    this.axiosInstance.post(
+      this.connectionInformation.postResultUri + "/" + jobId,
+      response,
+      {
+        headers: {
+          "Content-Type": "application/octet-stream",
+        },
+      }
+    );
+  }
+ 
 
   public postSchema = (schemas: Schema[]) =>
     this.axiosInstance.post(this.connectionInformation.postSchemaUri, schemas, {
