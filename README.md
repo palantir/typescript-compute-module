@@ -35,7 +35,7 @@ new ComputeModule()
 
 ### Streaming usage
 
-You can stream responses back from the compute module, rather than all at once. Type safety is not provided on the response here as the SDL cannot validate that the stream was of the correct type, we recommend that you only set your return value to String in these cases.
+You can stream responses back from the compute module, rather than all at once. Type safety is not provided on the response here as the SDK cannot validate that the stream was of the correct type, we recommend that you only set your return value to String in these cases.
 
 ```ts
 import { ComputeModule } from "@palantir/compute-module";
