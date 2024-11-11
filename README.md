@@ -96,6 +96,21 @@ Sources can be used to store secrets for use within a Compute Module, they preve
 const myCredential = myModule.getCredential("MySourceApiName", "MyCredential");
 ```
 
+Sources can be validated on startup by declaring them in the compute module options:
+
+```ts
+const myModule = new ComputeModule({
+  // Will throw if MyApi has not been mounted
+  sources: ["MyApi"]
+});
+
+// ❌ Will throw a type error
+myModule.getCredential("YourApi", "MyCredential");
+
+// ✅ Passes type checking
+myModule.getCredential("MyApi", "MyCredential");
+```
+
 ### Retrieving environment details
 
 At runtime, you can retrieve details about the execution environment, which is useful for authenticating around services available:

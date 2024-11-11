@@ -18,7 +18,7 @@ import * as fs from "fs";
 import { isAxiosError } from "axios";
 import { Writable } from "stream";
 
-export interface ComputeModuleOptions<M extends QueryResponseMapping = any> {
+export interface ComputeModuleOptions<M extends QueryResponseMapping = any, S extends string = string> {
   /**
    * Definitions for the queries that the module will respond to, defined using typebox.
    * @example
@@ -50,9 +50,13 @@ export interface ComputeModuleOptions<M extends QueryResponseMapping = any> {
    * Can be set to false to enable typesafety without registering the queries.
    */
   isAutoRegistered?: boolean;
+  /**
+   * Expected sources to be mounted on the module, if provided will throw an error if the sources are not mounted.
+   */
+  sources?: S[];
 }
 
-export class ComputeModule<M extends QueryResponseMapping> {
+export class ComputeModule<M extends QueryResponseMapping, S extends string> {
   // Environment variables
   private static GET_JOB_URI = "GET_JOB_URI";
   private static POST_RESULT_URI = "POST_RESULT_URI";
@@ -82,7 +86,8 @@ export class ComputeModule<M extends QueryResponseMapping> {
     instanceId,
     definitions,
     isAutoRegistered,
-  }: ComputeModuleOptions<M>) {
+    sources
+  }: ComputeModuleOptions<M, S>) {
     this.logger =
       logger != null ? loggerToInstanceLogger(logger, instanceId) : undefined;
     this.definitions = definitions;
@@ -93,6 +98,16 @@ export class ComputeModule<M extends QueryResponseMapping> {
       sourceCredentialsPath != null
         ? new SourceCredentials(sourceCredentialsPath)
         : null;
+
+    if(sources != null) {
+      sources.forEach((source) => {
+        if (!this.sourceCredentials?.hasSource(source)) {
+          throw new Error(
+            `Source ${source} not found in source credentials. Ensure you have mounted the correct sources.`
+          );
+        }
+      });
+    }
 
     const resourceAliasMap = process.env[ComputeModule.RESOURCE_ALIAS_MAP];
     this.resourceAliases =
@@ -168,7 +183,7 @@ export class ComputeModule<M extends QueryResponseMapping> {
    * Sources can be used to store secrets for use within a Compute Module, they prevent you from having to put secrets in your container or in plaintext in the job specification.
    */
   public getCredential(
-    sourceApiName: string,
+    sourceApiName: S,
     credentialName: string
   ): string | null {
     if (this.sourceCredentials == null) {

@@ -3,6 +3,7 @@ import { Type } from "@sinclair/typebox";
 
 const computeModule = new ComputeModule({
   logger: console,
+  sources: ["TestApi"],
   definitions: {
     chat: {
       input: Type.Object({
@@ -98,7 +99,7 @@ if (computeModule.environment.type === "pipelines") {
     })
     .register("getCredential", async (v) => {
       return (
-        (await computeModule.getCredential(v.source, v.key)) ?? "Not found"
+        (await computeModule.getCredential(v.source as "TestApi", v.key)) ?? "Not found"
       );
     })
     .register("openFile", async (v) => {
