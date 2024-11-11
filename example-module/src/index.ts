@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 
 const computeModule = new ComputeModule({
   logger: console,
-  sources: ["TestApi"],
+  sources: ["MyApi"],
   definitions: {
     chat: {
       input: Type.Object({
@@ -74,7 +74,7 @@ if (computeModule.environment.type === "pipelines") {
   );
   console.log(
     `Logging credential "TestSecret" on "TestApi"`,
-    computeModule.getCredential("TestApi", "TestSecret")
+    computeModule.getCredential("MyApi", "TestSecret")
   );
   console.log(
     `Logging streamProxyApi location`,
@@ -99,7 +99,7 @@ if (computeModule.environment.type === "pipelines") {
     })
     .register("getCredential", async (v) => {
       return (
-        (await computeModule.getCredential(v.source as "TestApi", v.key)) ?? "Not found"
+        (await computeModule.getCredential(v.source as "MyApi", v.key)) ?? "Not found"
       );
     })
     .register("openFile", async (v) => {
