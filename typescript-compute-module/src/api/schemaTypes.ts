@@ -47,7 +47,7 @@ export namespace Schema {
   export type ListType = {
     type: "list";
     list: {
-      elementTypes: DataType;
+      elementsType: DataType;
     };
   }
 

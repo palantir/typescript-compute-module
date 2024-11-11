@@ -4,6 +4,21 @@ import { Type } from "@sinclair/typebox";
 const computeModule = new ComputeModule({
   logger: console,
   definitions: {
+    chat: {
+      input: Type.Object({
+        messages: Type.Array(
+          Type.Object({
+            role: Type.String(),
+            content: Type.String(),
+          })
+        ),
+        temperature: Type.Number(),
+        max_tokens: Type.Number(),
+      }),
+      output: Type.Object({
+        messages: Type.Array(Type.String()),
+      }),
+    },
     getEnv: {
       input: Type.Object({}),
       output: Type.Object({
@@ -99,5 +114,10 @@ if (computeModule.environment.type === "pipelines") {
           writeable.end();
         }
       }, 1000);
+    })
+    .register("chat", async (v) => {
+      return {
+        messages: v.messages.map((m) => `${m.role}: ${m.content}`),
+      };
     });
 }
