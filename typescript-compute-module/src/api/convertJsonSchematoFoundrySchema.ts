@@ -57,7 +57,7 @@ function convertJsonType(jsonType: TSchema): Schema.DataType {
     return {
       type: "list",
       list: {
-        elementTypes: convertJsonType(jsonType.items),
+        elementsType: convertJsonType(jsonType.items),
       },
     };
   } else if (TypeGuard.IsBoolean(jsonType)) {
