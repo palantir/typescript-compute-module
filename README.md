@@ -104,7 +104,9 @@ const myModule = new ComputeModule({
   sources: {
     MyApi: {
       credentials: ["MyCredential"]
-    }
+    },
+    // You can validate the source, without validating the credential
+    AnotherApi: {}
   }
 });
 
@@ -115,6 +117,9 @@ myModule.getCredential("MyApi", "YourCredential");
 
 // ✅ Passes type checking
 myModule.getCredential("MyApi", "MyCredential");
+
+// ✅ As there are no known credentials, any string can be passed to this source
+myModule.getCredential("AnotherApi", "AnyString");
 ```
 
 If not provided, getCredential will do no type validation compile-time and the instance will not validate at run-time.
