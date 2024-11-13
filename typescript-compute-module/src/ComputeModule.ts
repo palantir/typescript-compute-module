@@ -85,8 +85,6 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
   private resourceAliases: ResourceAliases | null;
   private logger?: Logger;
   private queryRunner: QueryRunner<O["definitions"]>;
-  private definitions?: O["definitions"];
-  private shouldAutoRegister: boolean;
 
   private listeners: Partial<{
     [K in keyof O["definitions"]]: QueryListener<Pick<O["definitions"], K>>;
@@ -102,8 +100,6 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
   }: O) {
     this.logger =
       logger != null ? loggerToInstanceLogger(logger, instanceId) : undefined;
-    this.definitions = definitions;
-    this.shouldAutoRegister = isAutoRegistered ?? true;
 
     const sourceCredentialsPath = process.env[ComputeModule.SOURCE_CREDENTIALS];
     this.sourceCredentials =
@@ -143,7 +139,7 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
       return;
     }
 
-    this.initialize();
+    this.initialize(definitions, isAutoRegistered ?? true);
   }
 
   /**
@@ -154,7 +150,9 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
    */
   public register<T extends keyof O["definitions"]>(
     queryName: T,
-    listener: (data: Static<O["definitions"][T]["input"]>) => Promise<Static<O["definitions"][T]["output"]>>
+    listener: (
+      data: Static<O["definitions"][T]["input"]>
+    ) => Promise<Static<O["definitions"][T]["output"]>>
   ) {
     this.listeners[queryName] = { type: "response", listener };
     return this;
@@ -168,7 +166,10 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
    */
   public registerStreaming<T extends keyof O["definitions"]>(
     queryName: T,
-    listener: (data: Static<O["definitions"][T]["input"]>, writable: Writable) => void
+    listener: (
+      data: Static<O["definitions"][T]["input"]>,
+      writable: Writable
+    ) => void
   ) {
     this.listeners[queryName] = { type: "streaming", listener };
     return this;
@@ -250,7 +251,10 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
     };
   }
 
-  private initialize() {
+  private initialize(
+    definitions: O["definitions"],
+    shouldAutoRegister: boolean
+  ) {
     const computeModuleApi = new ComputeModuleApi({
       getJobUri: process.env[ComputeModule.GET_JOB_URI] ?? "",
       postResultUri: process.env[ComputeModule.POST_RESULT_URI] ?? "",
@@ -267,8 +271,8 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
 
     this.queryRunner.on("responsive", () => {
       this.logger?.info("Module is responsive");
-      if (this.definitions && this.shouldAutoRegister) {
-        const schemas = Object.entries(this.definitions).map(
+      if (definitions && shouldAutoRegister) {
+        const schemas = Object.entries(definitions).map(
           ([queryName, query]) =>
             convertJsonSchemaToCustomSchema(
               queryName,
