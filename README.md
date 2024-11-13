@@ -100,16 +100,24 @@ Sources can be validated on startup by declaring them in the compute module opti
 
 ```ts
 const myModule = new ComputeModule({
-  // Will throw if MyApi has not been mounted
-  sources: ["MyApi"]
+  // Will throw if MyApi with credential MyCredential has not been mounted
+  sources: {
+    MyApi: {
+      credentials: ["MyCredential"]
+    }
+  }
 });
 
 // ❌ Will throw a type error
+myModule.getCredential("YourApi", "YourCredential");
 myModule.getCredential("YourApi", "MyCredential");
+myModule.getCredential("MyApi", "YourCredential");
 
 // ✅ Passes type checking
 myModule.getCredential("MyApi", "MyCredential");
 ```
+
+If not provided, getCredential will do no type validation compile-time and the instance will not validate at run-time.
 
 ### Retrieving environment details
 
