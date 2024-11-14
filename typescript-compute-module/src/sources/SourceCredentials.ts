@@ -19,6 +19,10 @@ export class SourceCredentials {
     return this.sourceCredentials[sourceApiName]?.[credentialName] ?? null;
   }
 
+  public hasSource(sourceApiName: string): boolean {
+    return this.sourceCredentials[sourceApiName] != null;
+  }
+
   private get sourceCredentials(): SourceCredentialsFile {
     return (this._sourceCredentials ??= this.loadSourceCredentials());
   }

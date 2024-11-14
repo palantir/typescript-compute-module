@@ -4,7 +4,10 @@ import {
   QueryRunner,
   QueryListener,
 } from "./QueryRunner";
-import { ComputeModuleApi, formatAxiosErrorResponse } from "./api/ComputeModuleApi";
+import {
+  ComputeModuleApi,
+  formatAxiosErrorResponse,
+} from "./api/ComputeModuleApi";
 import { convertJsonSchemaToCustomSchema } from "./api/convertJsonSchematoFoundrySchema";
 import { Static } from "@sinclair/typebox";
 import { SourceCredentials } from "./sources/SourceCredentials";
@@ -18,7 +21,10 @@ import * as fs from "fs";
 import { isAxiosError } from "axios";
 import { Writable } from "stream";
 
-export interface ComputeModuleOptions<M extends QueryResponseMapping = any> {
+export interface ComputeModuleOptions<
+  M extends QueryResponseMapping = any,
+  S extends string = string
+> {
   /**
    * Definitions for the queries that the module will respond to, defined using typebox.
    * @example
@@ -50,9 +56,19 @@ export interface ComputeModuleOptions<M extends QueryResponseMapping = any> {
    * Can be set to false to enable typesafety without registering the queries.
    */
   isAutoRegistered?: boolean;
+  /**
+   * Expected sources to be mounted on the module, if provided will throw an error if the sources are not mounted.
+   */
+  sources?: {
+    [K in S]: SourceOptions;
+  };
 }
 
-export class ComputeModule<M extends QueryResponseMapping> {
+type SourceOptions<S extends string = string> = {
+  credentials?: S[];
+};
+
+export class ComputeModule<const O extends ComputeModuleOptions> {
   // Environment variables
   private static GET_JOB_URI = "GET_JOB_URI";
   private static POST_RESULT_URI = "POST_RESULT_URI";
@@ -68,12 +84,10 @@ export class ComputeModule<M extends QueryResponseMapping> {
   private sourceCredentials: SourceCredentials | null;
   private resourceAliases: ResourceAliases | null;
   private logger?: Logger;
-  private queryRunner: QueryRunner<M>;
-  private definitions?: M;
-  private shouldAutoRegister: boolean;
+  private queryRunner: QueryRunner<O["definitions"]>;
 
   private listeners: Partial<{
-    [K in keyof M]: QueryListener<Pick<M, K>>;
+    [K in keyof O["definitions"]]: QueryListener<Pick<O["definitions"], K>>;
   }> = {};
   private defaultListener?: (data: any, queryName: string) => Promise<any>;
 
@@ -82,11 +96,10 @@ export class ComputeModule<M extends QueryResponseMapping> {
     instanceId,
     definitions,
     isAutoRegistered,
-  }: ComputeModuleOptions<M>) {
+    sources,
+  }: O) {
     this.logger =
       logger != null ? loggerToInstanceLogger(logger, instanceId) : undefined;
-    this.definitions = definitions;
-    this.shouldAutoRegister = isAutoRegistered ?? true;
 
     const sourceCredentialsPath = process.env[ComputeModule.SOURCE_CREDENTIALS];
     this.sourceCredentials =
@@ -94,11 +107,28 @@ export class ComputeModule<M extends QueryResponseMapping> {
         ? new SourceCredentials(sourceCredentialsPath)
         : null;
 
+    if (sources != null) {
+      Object.keys(sources).forEach((source) => {
+        if (!this.sourceCredentials?.hasSource(source)) {
+          throw new Error(
+            `Source ${source} not found in source credentials. Ensure you have mounted the correct sources.`
+          );
+        }
+        sources[source].credentials?.forEach((credential) => {
+          if (!this.sourceCredentials?.getCredential(source, credential)) {
+            throw new Error(
+              `Credential ${credential} not found in source ${source}. Ensure you have mounted the correct sources.`
+            );
+          }
+        });
+      });
+    }
+
     const resourceAliasMap = process.env[ComputeModule.RESOURCE_ALIAS_MAP];
     this.resourceAliases =
       resourceAliasMap != null ? new ResourceAliases(resourceAliasMap) : null;
 
-    this.queryRunner = new QueryRunner<M>(
+    this.queryRunner = new QueryRunner<O["definitions"]>(
       this.listeners,
       this.defaultListener,
       this.logger
@@ -109,7 +139,7 @@ export class ComputeModule<M extends QueryResponseMapping> {
       return;
     }
 
-    this.initialize();
+    this.initialize(definitions, isAutoRegistered ?? true);
   }
 
   /**
@@ -118,9 +148,11 @@ export class ComputeModule<M extends QueryResponseMapping> {
    * @param listener Function to run when the query is received
    * @returns
    */
-  public register<T extends keyof M>(
+  public register<T extends keyof O["definitions"]>(
     queryName: T,
-    listener: (data: Static<M[T]["input"]>) => Promise<Static<M[T]["output"]>>
+    listener: (
+      data: Static<O["definitions"][T]["input"]>
+    ) => Promise<Static<O["definitions"][T]["output"]>>
   ) {
     this.listeners[queryName] = { type: "response", listener };
     return this;
@@ -132,10 +164,10 @@ export class ComputeModule<M extends QueryResponseMapping> {
    * @param listener Function to run when the query is received
    * @returns
    */
-  public registerStreaming<T extends keyof M>(
+  public registerStreaming<T extends keyof O["definitions"]>(
     queryName: T,
     listener: (
-      data: Static<M[T]["input"]>,
+      data: Static<O["definitions"][T]["input"]>,
       writable: Writable
     ) => void
   ) {
@@ -167,10 +199,14 @@ export class ComputeModule<M extends QueryResponseMapping> {
   /**
    * Sources can be used to store secrets for use within a Compute Module, they prevent you from having to put secrets in your container or in plaintext in the job specification.
    */
-  public getCredential(
-    sourceApiName: string,
-    credentialName: string
-  ): string | null {
+  public getCredential<
+    T_Source extends O extends { sources: infer S } ? keyof S : string,
+    T_Credential extends O extends {
+      sources: { [K in T_Source]: SourceOptions<infer C> };
+    }
+      ? C
+      : string
+  >(sourceApiName: T_Source, credentialName: T_Credential): string | null {
     if (this.sourceCredentials == null) {
       throw new Error(
         "No source credentials mounted. This implies the SOURCE_CREDENTIALS environment variable has not been set, ensure you have set sources mounted on the Compute Module."
@@ -215,7 +251,10 @@ export class ComputeModule<M extends QueryResponseMapping> {
     };
   }
 
-  private initialize() {
+  private initialize(
+    definitions: O["definitions"],
+    shouldAutoRegister: boolean
+  ) {
     const computeModuleApi = new ComputeModuleApi({
       getJobUri: process.env[ComputeModule.GET_JOB_URI] ?? "",
       postResultUri: process.env[ComputeModule.POST_RESULT_URI] ?? "",
@@ -232,8 +271,8 @@ export class ComputeModule<M extends QueryResponseMapping> {
 
     this.queryRunner.on("responsive", () => {
       this.logger?.info("Module is responsive");
-      if (this.definitions && this.shouldAutoRegister) {
-        const schemas = Object.entries(this.definitions).map(
+      if (definitions && shouldAutoRegister) {
+        const schemas = Object.entries(definitions).map(
           ([queryName, query]) =>
             convertJsonSchemaToCustomSchema(
               queryName,
