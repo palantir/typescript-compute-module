@@ -19,7 +19,6 @@ import {
 } from "./services/getFoundryServices";
 import * as fs from "fs";
 import { isAxiosError } from "axios";
-import { Writable } from "stream";
 
 export interface ComputeModuleOptions<
   M extends QueryResponseMapping = any,
@@ -168,7 +167,10 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
     queryName: T,
     listener: (
       data: Static<O["definitions"][T]["input"]>,
-      writable: Writable
+      writable: {
+        write: (chunk: Buffer | Uint8Array | string) => void;
+        end: () => void;
+      }
     ) => void
   ) {
     this.listeners[queryName] = { type: "streaming", listener };

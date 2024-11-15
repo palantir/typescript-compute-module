@@ -1,9 +1,12 @@
-import { AxiosError, HttpStatusCode, isAxiosError } from "axios";
+import { HttpStatusCode, isAxiosError } from "axios";
 import { Logger } from "./logger";
 import { Static, TObject } from "@sinclair/typebox";
-import { ComputeModuleApi, formatAxiosErrorResponse } from "./api/ComputeModuleApi";
+import {
+  ComputeModuleApi,
+  formatAxiosErrorResponse,
+} from "./api/ComputeModuleApi";
 import { SupportedTypeboxTypes } from "./api/convertJsonSchematoFoundrySchema";
-import { PassThrough, Writable } from "stream";
+import { PassThrough } from "stream";
 
 export interface QueryResponseMapping {
   [queryType: string]: {
@@ -12,20 +15,29 @@ export interface QueryResponseMapping {
   };
 }
 
-export type QueryListener<M extends QueryResponseMapping> = {
-  type: "response";
-  listener: ResponseQueryListener<M>;
-} | {
-  type: "streaming";
-  listener: StreamingQueryListener<M>;
-};
+export type QueryListener<M extends QueryResponseMapping> =
+  | {
+      type: "response";
+      listener: ResponseQueryListener<M>;
+    }
+  | {
+      type: "streaming";
+      listener: StreamingQueryListener<M>;
+    };
 
-export type StreamingQueryListener<M extends QueryResponseMapping> = <T extends keyof M>(
+export type StreamingQueryListener<M extends QueryResponseMapping> = <
+  T extends keyof M
+>(
   message: Static<M[T]["input"]>,
-  responseStream: Writable
+  responseStream: {
+    write: (chunk: Buffer | Uint8Array | string) => void;
+    end: () => void;
+  }
 ) => void;
 
-export type ResponseQueryListener<M extends QueryResponseMapping> = <T extends keyof M>(
+export type ResponseQueryListener<M extends QueryResponseMapping> = <
+  T extends keyof M
+>(
   message: Static<M[T]["input"]>
 ) => Promise<Static<M[T]["output"]>>;
 
@@ -40,14 +52,17 @@ export class QueryRunner<M extends QueryResponseMapping> {
     }>,
     private defaultListener?: (query: any, queryType: string) => Promise<any>,
     private readonly logger?: Logger
-  ) { }
+  ) {}
 
   async run(computeModuleApi: ComputeModuleApi) {
     while (true) {
       try {
         const jobRequest = await computeModuleApi.getJobRequest();
 
-        if (!this.isResponsive && jobRequest.status.toString().startsWith("2")) {
+        if (
+          !this.isResponsive &&
+          jobRequest.status.toString().startsWith("2")
+        ) {
           // If this is the first job, set the module as responsive
           this.setResponsive();
         }
@@ -59,9 +74,9 @@ export class QueryRunner<M extends QueryResponseMapping> {
           const listener = this.listeners[queryType];
 
           if (listener?.type === "response") {
-            listener.listener(query).then((response) =>
-              computeModuleApi.postResult(jobId, response)
-            );
+            listener
+              .listener(query)
+              .then((response) => computeModuleApi.postResult(jobId, response));
           } else if (listener?.type === "streaming") {
             const writable = new PassThrough();
             listener.listener(query, writable);
