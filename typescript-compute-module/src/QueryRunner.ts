@@ -30,7 +30,7 @@ export type StreamingQueryListener<M extends QueryResponseMapping> = <
 >(
   message: Static<M[T]["input"]>,
   responseStream: {
-    write: (data: any) => void;
+    write: (chunk: Buffer | Uint8Array | string) => void;
     end: () => void;
   }
 ) => void;

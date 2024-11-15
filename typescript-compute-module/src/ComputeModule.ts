@@ -136,8 +136,8 @@ export class ComputeModule<M extends QueryResponseMapping> {
     listener: (
       data: Static<M[T]["input"]>,
       writable: {
-        write: (chunk: any) => void;
-        end: (chunk: any) => void;
+        write: (chunk: Buffer | Uint8Array | string) => void;
+        end: () => void;
       }
     ) => void
   ) {
