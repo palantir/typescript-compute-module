@@ -76,7 +76,11 @@ export class QueryRunner<M extends QueryResponseMapping> {
           if (listener?.type === "response") {
             listener
               .listener(query)
-              .then((response) => computeModuleApi.postResult(jobId, response));
+              .then((response) => computeModuleApi.postResult(jobId, response))
+              .catch((error) => {
+                this.logger?.error(`Error executing job - ID: ${jobId} Reason: ${error}`);
+                computeModuleApi.postResult(jobId, QueryRunner.getFailedQueryResult(error));
+              });
           } else if (listener?.type === "streaming") {
             const writable = new PassThrough();
             listener.listener(query, writable);
@@ -125,5 +129,12 @@ export class QueryRunner<M extends QueryResponseMapping> {
     defaultListener: (query: any, queryType: string) => Promise<any>
   ) {
     this.defaultListener = defaultListener;
+  }
+
+  private static getFailedQueryResult(error: any): Record<string, string> {
+    return { "error": error.toString(),
+             ...(error instanceof Error &&
+              { "error": error.name, "reason": error.message })
+    };
   }
 }
