@@ -257,14 +257,16 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
     definitions: O["definitions"],
     shouldAutoRegister: boolean
   ) {
+    const defaultCAPath = process.env[ComputeModule.DEFAULT_CA_PATH];
+    
     const computeModuleApi = new ComputeModuleApi({
       getJobUri: process.env[ComputeModule.GET_JOB_URI] ?? "",
       postResultUri: process.env[ComputeModule.POST_RESULT_URI] ?? "",
       postSchemaUri: process.env[ComputeModule.POST_SCHEMA_URI] ?? "",
-      trustStore: fs.readFileSync(
-        process.env[ComputeModule.DEFAULT_CA_PATH] ?? "",
-        "utf-8"
-      ),
+      trustStore:
+        defaultCAPath != null
+          ? fs.readFileSync(defaultCAPath, "utf-8")
+          : undefined,
       moduleAuthToken: fs.readFileSync(
         process.env[ComputeModule.MODULE_AUTH_TOKEN] ?? "",
         "utf-8"
