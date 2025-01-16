@@ -7,7 +7,7 @@ export interface ConnectionInformation {
   getJobUri: string; // GET_JOB_URI
   postResultUri: string; // POST_RESULT_URI
   postSchemaUri: string; // POST_SCHEMA_URI
-  trustStore: string; // DEFAULT_CA_PATH
+  trustStore: string | undefined; // File contents at DEFAULT_CA_PATH
   moduleAuthToken: string; // MODULE_AUTH_TOKEN
 }
 
