@@ -19,7 +19,7 @@ export enum FoundryService {
   MIO = "foundry_mio",
 }
 
-let cachedServices: Record<FoundryService, string> | null = null;
+let cachedServices: Record<FoundryService, string | undefined> | null = null;
 /**
  * Used to discover the location of Foundry services for interaction with the Foundry API
  */
@@ -37,7 +37,7 @@ export const getFoundryServices = () => {
         key,
         value[0],
       ])
-    ) as Record<FoundryService, string>;
+    ) as Record<FoundryService, string | undefined>;
   }
   return cachedServices;
 };

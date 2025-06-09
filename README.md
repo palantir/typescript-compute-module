@@ -49,7 +49,6 @@ new ComputeModule()
   .default(() => ({ error: "Unsupported query name" }));
 ```
 
-
 ### Schema registration
 
 Definitions can be generated using [typebox](https://github.com/sinclairzx81/typebox) allowing the Compute Module to register functions at runtime, while maintaining typesafety at compile time.
@@ -80,7 +79,9 @@ myModule.register("addOne", async ({ value }) => ({ value: n + 1 }));
 Compute Modules can interact with resources in their execution environment, within Palantir Foundry these are defined as inputs and outputs on the Compute Module spec. Resource identifiers can be unique to the execution environment, so using aliases allows your code to maintain a static reference to known resources. To receive the identifier for an aliases resource, use the `getResource` method.
 
 ```ts
-const resourceId = myModule.getResource("myResourceAlias");
+import { ComputeModule } from "@palantir/compute-module";
+
+const resourceId = ComputeModule.getResource("myResourceAlias");
 const result = await someDataFetcherForId(resourceId);
 ```
 
@@ -129,8 +130,13 @@ If not provided, getCredential will do no type validation compile-time and the i
 At runtime, you can retrieve details about the execution environment, which is useful for authenticating around services available:
 
 ```ts
-const token =
-  myModule.environment.type === "pipelines" ? myModule.environment.buildToken : undefined;
+import { ComputeModule } from "@palantir/compute-module";
+
+const environment = ComputeModule.getEnvironment();
+const buildToken =
+  environment.type === "pipelines" ? environment.buildToken : undefined;
+
+const thirdPartyApplicationCredentials = environment.type === "functions" ? environment.thirdPartyApplication : undefined;
 ```
 
 ### Retrieving Foundry services
