@@ -67,6 +67,11 @@ type SourceOptions<S extends string = string> = {
   credentials?: S[];
 };
 
+const resourceAliasMapPath = process.env["RESOURCE_ALIAS_MAP"];
+const resourceAliases =
+  resourceAliasMapPath != null
+    ? new ResourceAliases(resourceAliasMapPath)
+    : null;
 export class ComputeModule<const O extends ComputeModuleOptions> {
   // Environment variables
   private static GET_JOB_URI = "GET_JOB_URI";
@@ -75,13 +80,13 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
 
   // Known mounted files
   private static SOURCE_CREDENTIALS = "SOURCE_CREDENTIALS";
-  private static RESOURCE_ALIAS_MAP = "RESOURCE_ALIAS_MAP";
   private static DEFAULT_CA_PATH = "DEFAULT_CA_PATH";
   private static MODULE_AUTH_TOKEN = "MODULE_AUTH_TOKEN";
   private static BUILD2_TOKEN = "BUILD2_TOKEN";
+  private static CLIENT_ID = "CLIENT_ID";
+  private static CLIENT_SECRET = "CLIENT_SECRET";
 
   private sourceCredentials: SourceCredentials | null;
-  private resourceAliases: ResourceAliases | null;
   private logger?: Logger;
   private queryRunner: QueryRunner<O["definitions"]>;
 
@@ -122,10 +127,6 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
         });
       });
     }
-
-    const resourceAliasMap = process.env[ComputeModule.RESOURCE_ALIAS_MAP];
-    this.resourceAliases =
-      resourceAliasMap != null ? new ResourceAliases(resourceAliasMap) : null;
 
     this.queryRunner = new QueryRunner<O["definitions"]>(
       this.listeners,
@@ -218,29 +219,29 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
   }
 
   /**
+   * At runtime, you can retrieve the api paths for known Foundry services, this allows you to call those endpoints without using a source to ingress back into the platform.
+   */
+  public static getServiceApi(service: FoundryService): string | undefined {
+    return getFoundryServices()[service];
+  }
+
+  /**
    * Compute Modules can interact with resources in their execution environment, within Palantir Foundry these are defined as inputs and outputs on the Compute Module spec. Resource identifiers can be unique to the execution environment,
    * so using aliases allows your code to maintain a static reference to known resources.
    */
-  public getResource(alias: string): Resource | null {
-    if (this.resourceAliases == null) {
+  public static getResource(alias: string): Resource | null {
+    if (resourceAliases == null) {
       throw new Error(
         "No resource aliases mounted. This implies the RESOURCE_ALIAS_MAP environment variable has not been set, ensure you have set resources mounted on the Compute Module."
       );
     }
-    return this.resourceAliases.getAlias(alias);
-  }
-
-  /**
-   * At runtime, you can retrieve the api paths for known Foundry services, this allows you to call those endpoints without using a source to ingress back into the platform.
-   */
-  public getServiceApi(service: FoundryService): string {
-    return getFoundryServices()[service];
+    return resourceAliases.getAlias(alias);
   }
 
   /**
    * Returns the environment and tokens for the current execution mode
    */
-  public get environment(): Environment {
+  public static getEnvironment(): Environment {
     const buildTokenPath = process.env[ComputeModule.BUILD2_TOKEN];
     if (buildTokenPath != null) {
       return {
@@ -248,9 +249,48 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
         buildToken: fs.readFileSync(buildTokenPath, "utf-8"),
       };
     }
+    const maybeClientId = process.env[ComputeModule.CLIENT_ID];
+    const maybeClientSecret = process.env[ComputeModule.CLIENT_SECRET];
     return {
       type: "functions",
+      thirdPartyApplication:
+        maybeClientId != null && maybeClientSecret != null
+          ? {
+              clientId: maybeClientId,
+              clientSecret: maybeClientSecret,
+            }
+          : undefined,
     };
+  }
+
+  /**
+   * @deprecated Use `ComputeModule.getServiceApi()` instead
+   * This method is deprecated and will be removed in future versions.
+   *
+   * Returns the api path for a given Foundry service
+   */
+  public getServiceApi(service: FoundryService): string | undefined {
+    return ComputeModule.getServiceApi(service);
+  }
+
+  /**
+   * @deprecated Use `ComputeModule.getResource()` instead
+   * This method is deprecated and will be removed in future versions.
+   *
+   * Returns the resource for a given alias, if the alias is not found, returns null
+   */
+  public getResource(alias: string): Resource | null {
+    return ComputeModule.getResource(alias);
+  }
+
+  /**
+   * @deprecated Use `ComputeModule.getEnvironment()` instead
+   * This method is deprecated and will be removed in future versions.
+   *
+   * Returns the environment and tokens for the current execution mode
+   */
+  public get environment(): Environment {
+    return ComputeModule.getEnvironment();
   }
 
   private initialize(
@@ -258,7 +298,7 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
     shouldAutoRegister: boolean
   ) {
     const defaultCAPath = process.env[ComputeModule.DEFAULT_CA_PATH];
-    
+
     const computeModuleApi = new ComputeModuleApi({
       getJobUri: process.env[ComputeModule.GET_JOB_URI] ?? "",
       postResultUri: process.env[ComputeModule.POST_RESULT_URI] ?? "",
@@ -276,13 +316,8 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
     this.queryRunner.on("responsive", () => {
       this.logger?.info("Module is responsive");
       if (definitions && shouldAutoRegister) {
-        const schemas = Object.entries(definitions).map(
-          ([queryName, query]) =>
-            convertJsonSchemaToCustomSchema(
-              queryName,
-              query.input,
-              query.output
-            )
+        const schemas = Object.entries(definitions).map(([queryName, query]) =>
+          convertJsonSchemaToCustomSchema(queryName, query.input, query.output)
         );
 
         this.logger?.info(`Posting schemas:${JSON.stringify(schemas)}`);
