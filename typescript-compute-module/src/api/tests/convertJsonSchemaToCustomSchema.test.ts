@@ -21,6 +21,7 @@ const CHAT_DEFINITION = {
       ),
       temperature: Type.Number(),
       max_tokens: Type.Number(),
+      optionalField: Type.Optional(Type.String())
     }),
     output: Type.Object({
       messages: Type.Array(Type.String()),
@@ -112,6 +113,20 @@ describe("Type tests", () => {
           },
           constraints: [],
         },
+        {
+          name: "optionalField",
+          required: false,
+          dataType: {
+            type: "optionalType",
+            optionalType: {
+              wrappedType: {
+                type: "string",
+                string: {}
+              }
+            }
+          },
+          constraints: [],
+        }
       ],
       output: {
         type: "single",

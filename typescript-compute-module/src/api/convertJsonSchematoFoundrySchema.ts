@@ -40,7 +40,15 @@ export function convertJsonSchemaToCustomSchema(
 }
 
 function convertJsonType(jsonType: TSchema): Schema.DataType {
-  if (TypeGuard.IsObject(jsonType)) {
+  if (TypeGuard.IsOptional(jsonType)) {
+    return {
+      type: "optionalType",
+      optionalType: {
+        wrappedType: convertJsonType(jsonType.type)
+      }
+    }
+  }
+  else if (TypeGuard.IsObject(jsonType)) {
     return {
       type: "anonymousCustomType",
       anonymousCustomType: {

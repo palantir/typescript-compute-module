@@ -22,7 +22,7 @@ export namespace Schema {
     }
   }
 
-  export type DataType = BooleanType | IntegerType | FloatType | StringType | ListType | AnonymousCustomType;
+  export type DataType = BooleanType | IntegerType | FloatType | StringType | ListType | AnonymousCustomType | OptionalType;
 
   export type BooleanType = {
     type: "boolean";
@@ -58,5 +58,12 @@ export namespace Schema {
           [key: string]: DataType;
         }
       };
+  }
+
+  export type OptionalType = {
+    type: "optionalType";
+    optionalType: {
+      wrappedType: DataType;
+    }
   }
 }
