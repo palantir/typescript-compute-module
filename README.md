@@ -1,3 +1,7 @@
+<p align="right">
+<a href="https://autorelease.general.dmz.palantir.tech/palantir/typescript-compute-module"><img src="https://img.shields.io/badge/Perform%20an-Autorelease-success.svg" alt="Autorelease"></a>
+</p>
+
 # @palantir/compute-module
 
 [![npm version](https://img.shields.io/npm/v/@palantir%2Fcompute-module?style=flat)](https://www.npmjs.com/package/@palantir/compute-module)
