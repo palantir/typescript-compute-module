@@ -1,6 +1,6 @@
 import https from "https";
 import { Schema } from "./schemaTypes";
-import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
+import axios, { AxiosError, InternalAxiosRequestConfig, isAxiosError } from "axios";
 import { Writable } from "stream";
 
 export interface ConnectionInformation {
@@ -26,6 +26,18 @@ export class ComputeModuleApi {
         "Module-Auth-Token": this.connectionInformation.moduleAuthToken,
       },
     });
+    // Request interceptor to sanitize errors that occur during request phase (before response)
+    this.axiosInstance.interceptors.request.use(
+      (config) => config,
+      (error) => {
+        if (isAxiosError(error)) {
+          return Promise.reject(sanitizeAxiosError(error));
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    // Response interceptor to sanitize errors that occur after response
     this.axiosInstance.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {

@@ -4,6 +4,7 @@ import { Static, TObject } from "@sinclair/typebox";
 import {
   ComputeModuleApi,
   formatAxiosErrorResponse,
+  sanitizeAxiosError,
 } from "./api/ComputeModuleApi";
 import { SupportedTypeboxTypes } from "./api/convertJsonSchematoFoundrySchema";
 import { PassThrough } from "stream";
@@ -78,21 +79,28 @@ export class QueryRunner<M extends QueryResponseMapping> {
               .listener(query)
               .then((response) => computeModuleApi.postResult(jobId, response))
               .catch((error) => {
-                this.logger?.error(`Error executing job - ID: ${jobId} Reason: ${error}`);
-                computeModuleApi.postResult(jobId, QueryRunner.getFailedQueryResult(error));
+                const sanitizedError = isAxiosError(error) ? sanitizeAxiosError(error) : error;
+                this.logger?.error(`Error executing job - ID: ${jobId} Reason: ${sanitizedError}`);
+                computeModuleApi.postResult(jobId, QueryRunner.getFailedQueryResult(sanitizedError));
               });
           } else if (listener?.type === "streaming") {
             const writable = new PassThrough();
             listener.listener(query, writable);
             computeModuleApi.postStreamingResult(jobId, writable);
           } else if (this.defaultListener != null) {
-            this.defaultListener(query, queryType).then((response) =>
-              computeModuleApi.postResult(
-                jobId,
-                // Convert number to string as per response spec
-                typeof response === "number" ? response.toString() : response
+            this.defaultListener(query, queryType)
+              .then((response) =>
+                computeModuleApi.postResult(
+                  jobId,
+                  // Convert number to string as per response spec
+                  typeof response === "number" ? response.toString() : response
+                )
               )
-            );
+              .catch((error) => {
+                const sanitizedError = isAxiosError(error) ? sanitizeAxiosError(error) : error;
+                this.logger?.error(`Error executing default listener - ID: ${jobId} Reason: ${sanitizedError}`);
+                computeModuleApi.postResult(jobId, QueryRunner.getFailedQueryResult(sanitizedError));
+              });
           } else {
             this.logger?.error(`No listener for query type: ${queryType}`);
           }
@@ -105,8 +113,10 @@ export class QueryRunner<M extends QueryResponseMapping> {
         if (!this.isResponsive && e.code === "ECONNREFUSED") {
           continue;
         }
+        // Sanitize the error before logging to prevent sensitive data leakage
+        const sanitizedError = sanitizeAxiosError(e);
         this.logger?.error(
-          `Error running module - Network Error: ${formatAxiosErrorResponse(e)}`
+          `Error running module - Network Error: ${formatAxiosErrorResponse(sanitizedError)}`
         );
       }
     }
