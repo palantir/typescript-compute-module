@@ -7,6 +7,7 @@ import {
 import {
   ComputeModuleApi,
   formatAxiosErrorResponse,
+  sanitizeAxiosError,
 } from "./api/ComputeModuleApi";
 import { convertJsonSchemaToCustomSchema } from "./api/convertJsonSchematoFoundrySchema";
 import { Static } from "@sinclair/typebox";
@@ -323,8 +324,9 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
         this.logger?.info(`Posting schemas:${JSON.stringify(schemas)}`);
         computeModuleApi.postSchema(schemas).catch((e) => {
           if (isAxiosError(e)) {
+            const sanitizedError = sanitizeAxiosError(e);
             this.logger?.error(
-              `Error posting schemas: ${formatAxiosErrorResponse(e)}`
+              `Error posting schemas: ${formatAxiosErrorResponse(sanitizedError)}`
             );
           }
         });
