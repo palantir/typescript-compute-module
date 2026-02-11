@@ -39,18 +39,58 @@ new ComputeModule()
 
 ### Streaming usage
 
-You can stream responses back from the compute module, rather than all at once. Type safety is not provided on the response here as the SDK cannot validate that the stream was of the correct type, we recommend that you only set your return value to String in these cases.
+You can stream responses back from the compute module using `executeFunctionStreaming`. To use streaming, the output type must be declared as `Type.Array(...)`. Each element is streamed individually by calling `writeable.write(JSON.stringify(element))`. Both simple types (e.g. strings) and complex object types are supported.
 
 ```ts
 import { ComputeModule } from "@palantir/compute-module";
+import { Type } from "@sinclair/typebox";
 
-new ComputeModule()
-  .registerStreaming("hello", async ({ world }, writeable: Writeable) => {
-    writeable.write("Hello");
-    writeable.write(world);
-    writeable.end();
-  });
-  .default(() => ({ error: "Unsupported query name" }));
+const computeModule = new ComputeModule({
+  definitions: {
+    greet: {
+      input: Type.Object({ name: Type.String() }),
+      output: Type.Array(Type.String()),
+    },
+  },
+});
+
+// Each write must produce valid JSON, even for string literals
+computeModule.registerStreaming("greet", async ({ name }, writeable) => {
+  writeable.write(JSON.stringify("Hello, "));
+  writeable.write(JSON.stringify(name));
+  writeable.end();
+});
+```
+
+Streaming also works with complex object types:
+
+```ts
+import { ComputeModule } from "@palantir/compute-module";
+import { Type } from "@sinclair/typebox";
+
+const User = Type.Object({
+  name: Type.String(),
+  role: Type.String(),
+  active: Type.Boolean(),
+});
+
+const computeModule = new ComputeModule({
+  definitions: {
+    activeUsers: {
+      input: Type.Object({ users: Type.Array(User) }),
+      output: Type.Array(User),
+    },
+  },
+});
+
+computeModule.registerStreaming("activeUsers", async ({ users }, writeable) => {
+  for (const user of users) {
+    if (user.active) {
+      writeable.write(JSON.stringify(user));
+    }
+  }
+  writeable.end();
+});
 ```
 
 ### Schema registration
