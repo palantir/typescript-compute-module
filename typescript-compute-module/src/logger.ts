@@ -14,32 +14,26 @@ export interface Logger {
 }
 
 /**
- * Wraps a logger with an instance ID prefix and base params injected into every log call.
+ * Wraps a logger with an instance ID prefix injected into every log call.
  */
-export function loggerToInstanceLogger(
+export const loggerToInstanceLogger = (
   logger: Logger,
-  instanceId?: string,
-  baseParams?: LogParams
-): Logger {
+  instanceId?: string
+): Logger => {
   const prefix = instanceId != null ? `[${instanceId}] ` : "";
-
-  function mergeParams(params?: LogParams): LogParams | undefined {
-    if (baseParams == null && params == null) return undefined;
-    return { ...baseParams, ...params };
-  }
 
   return {
     log: (message, params) =>
-      logger.log(`${prefix}${message}`, mergeParams(params)),
+      logger.log(`${prefix}${message}`, params),
     debug: logger.debug
       ? (message, params) =>
-          logger.debug!(`${prefix}${message}`, mergeParams(params))
+          logger.debug!(`${prefix}${message}`, params)
       : undefined,
     error: (message, params) =>
-      logger.error(`${prefix}${message}`, mergeParams(params)),
+      logger.error(`${prefix}${message}`, params),
     info: (message, params) =>
-      logger.info(`${prefix}${message}`, mergeParams(params)),
+      logger.info(`${prefix}${message}`, params),
     warn: (message, params) =>
-      logger.warn(`${prefix}${message}`, mergeParams(params)),
+      logger.warn(`${prefix}${message}`, params),
   };
-}
+};
