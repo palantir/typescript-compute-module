@@ -1,24 +1,45 @@
+export interface LogParams {
+  session_id?: string;
+  process_id?: string;
+  job_id?: string;
+  [key: string]: unknown;
+}
+
 export interface Logger {
-  log: (message: string) => void;
-  error: (message: string) => void;
-  info: (message: string) => void;
-  warn: (message: string) => void;
+  log: (message: string, params?: LogParams) => void;
+  debug?: (message: string, params?: LogParams) => void;
+  error: (message: string, params?: LogParams) => void;
+  info: (message: string, params?: LogParams) => void;
+  warn: (message: string, params?: LogParams) => void;
 }
 
 /**
- * Wraps a logger with an instance ID to differentiate logs from different instances if provided
+ * Wraps a logger with an instance ID prefix and base params injected into every log call.
  */
-export const loggerToInstanceLogger = (
+export function loggerToInstanceLogger(
   logger: Logger,
-  instanceId?: string
-): Logger => {
-  if (instanceId == null) {
-    return logger;
+  instanceId?: string,
+  baseParams?: LogParams
+): Logger {
+  const prefix = instanceId != null ? `[${instanceId}] ` : "";
+
+  function mergeParams(params?: LogParams): LogParams | undefined {
+    if (baseParams == null && params == null) return undefined;
+    return { ...baseParams, ...params };
   }
+
   return {
-    log: (message: string) => logger.log(`[${instanceId}] ${message}`),
-    error: (message: string) => logger.error(`[${instanceId}] ${message}`),
-    info: (message: string) => logger.info(`[${instanceId}] ${message}`),
-    warn: (message: string) => logger.warn(`[${instanceId}] ${message}`),
+    log: (message, params) =>
+      logger.log(`${prefix}${message}`, mergeParams(params)),
+    debug: logger.debug
+      ? (message, params) =>
+          logger.debug!(`${prefix}${message}`, mergeParams(params))
+      : undefined,
+    error: (message, params) =>
+      logger.error(`${prefix}${message}`, mergeParams(params)),
+    info: (message, params) =>
+      logger.info(`${prefix}${message}`, mergeParams(params)),
+    warn: (message, params) =>
+      logger.warn(`${prefix}${message}`, mergeParams(params)),
   };
-};
+}

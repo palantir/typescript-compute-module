@@ -16,6 +16,7 @@ Node.JS compatible implementation of the Palantir Compute Module specification.
   - [Pipelines Mode](#pipelines-mode)
     - [Retrieving aliases](#retrieving-aliases)
   - [General usage](#general-usage)
+    - [Logging](#logging)
     - [Retrieving source credentials](#retrieving-source-credentials)
     - [Retrieving environment details](#retrieving-environment-details)
     - [Retrieving Foundry services](#retrieving-foundry-services)
@@ -58,11 +59,11 @@ new ComputeModule()
 Definitions can be generated using [typebox](https://github.com/sinclairzx81/typebox) allowing the Compute Module to register functions at runtime, while maintaining typesafety at compile time.
 
 ```ts
-import { ComputeModule } from "@palantir/compute-module";
+import { ComputeModule, SlsLogger } from "@palantir/compute-module";
 import { Type } from "@sinclair/typebox";
 
 const myModule = new ComputeModule({
-  logger: console,
+  logger: new SlsLogger(),
   definitions: {
     addOne: {
       input: Type.Object({
@@ -92,6 +93,36 @@ const result = await someDataFetcherForId(resourceId);
 ## General usage
 
 The following features are available in both Pipelines and Functions mode in order to interact with Palantir Foundry:
+
+### Logging
+
+The `SlsLogger` provides structured logging that is viewable in the Foundry Compute Module logs UI:
+
+```ts
+import { ComputeModule, SlsLogger } from "@palantir/compute-module";
+import { Type } from "@sinclair/typebox";
+
+const logger = new SlsLogger();
+
+const myModule = new ComputeModule({
+  logger,
+  definitions: {
+    addOne: {
+      input: Type.Object({ value: Type.Number() }),
+      output: Type.Object({ value: Type.Number() }),
+    },
+  },
+});
+
+myModule.register("addOne", async ({ value }) => {
+  logger.info("Processing addOne", { input_value: String(value) });
+  return { value: value + 1 };
+});
+```
+
+Custom key-value pairs can be passed as the second argument to any log method (`debug`, `info`, `warn`, `error`) and will be added to the params of the log entry.
+
+Any object with `log`, `info`, `warn`, and `error` methods (e.g. `console`) is also accepted as a logger.
 
 ### Retrieving source credentials
 
