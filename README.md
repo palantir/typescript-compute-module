@@ -94,9 +94,14 @@ const result = await someDataFetcherForId(resourceId);
 
 The following features are available in both Pipelines and Functions mode in order to interact with Palantir Foundry:
 
-### Logging
+### Logging and SLS format
 
-The `SlsLogger` provides structured logging that is viewable in the Foundry Compute Module logs UI:
+Anything written to the stdout or stderr streams will be logged. However, we recommend using the `SlsLogger` to emit SLS-formatted logs.
+
+Standard Logging Specification (SLS) is a Palantir-defined structure for log messages. Since the structure of SLS logs is known, our infrastructure can programmatically parse SLS logs and neatly display values in the compute module log viewer's Tabular mode.
+Selecting SLS format will only display logs that adhere to the SLS structure. The `SlsLogger` provided by this SDK will automatically emit logs with the SLS structure.
+
+Use it as follows:
 
 ```ts
 import { ComputeModule, SlsLogger } from "@palantir/compute-module";
