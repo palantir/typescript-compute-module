@@ -3,6 +3,7 @@ import {
   QueryResponseMapping,
   QueryRunner,
   QueryListener,
+  QueryContext,
 } from "./QueryRunner";
 import {
   ComputeModuleApi,
@@ -95,7 +96,7 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
   private listeners: Partial<{
     [K in keyof O["definitions"]]: QueryListener<Pick<O["definitions"], K>>;
   }> = {};
-  private defaultListener?: (data: any, queryName: string) => Promise<any>;
+  private defaultListener?: (data: any, queryName: string, context: QueryContext) => Promise<any>;
 
   constructor({
     logger,
@@ -152,7 +153,8 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
   public register<T extends keyof O["definitions"]>(
     queryName: T,
     listener: (
-      data: Static<O["definitions"][T]["input"]>
+      data: Static<O["definitions"][T]["input"]>,
+      context: QueryContext
     ) => Promise<Static<O["definitions"][T]["output"]>>
   ) {
     this.listeners[queryName] = { type: "response", listener };
@@ -172,7 +174,8 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
       writable: {
         write: (chunk: Buffer | Uint8Array | string) => void;
         end: () => void;
-      }
+      },
+      context: QueryContext
     ) => void
   ) {
     this.listeners[queryName] = { type: "streaming", listener };
@@ -194,7 +197,7 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
    * @param listener Function to run when the query is received
    * @returns
    */
-  public default(listener: (data: any, queryName: string) => Promise<any>) {
+  public default(listener: (data: any, queryName: string, context: QueryContext) => Promise<any>) {
     this.defaultListener = listener;
     this.queryRunner?.updateDefaultListener(listener);
     return this;

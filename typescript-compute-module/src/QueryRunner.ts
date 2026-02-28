@@ -33,13 +33,19 @@ export type StreamingQueryListener<M extends QueryResponseMapping> = <
   responseStream: {
     write: (chunk: Buffer | Uint8Array | string) => void;
     end: () => void;
-  }
+  },
+  context: QueryContext
 ) => void;
+
+export interface QueryContext {
+  jobId: string;
+}
 
 export type ResponseQueryListener<M extends QueryResponseMapping> = <
   T extends keyof M
 >(
-  message: Static<M[T]["input"]>
+  message: Static<M[T]["input"]>,
+  context: QueryContext
 ) => Promise<Static<M[T]["output"]>>;
 
 export class QueryRunner<M extends QueryResponseMapping> {
@@ -51,7 +57,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
     private readonly listeners: Partial<{
       [K in keyof M]: QueryListener<Pick<M, K>>;
     }>,
-    private defaultListener?: (query: any, queryType: string) => Promise<any>,
+    private defaultListener?: (query: any, queryType: string, context: QueryContext) => Promise<any>,
     private readonly logger?: Logger
   ) {}
 
@@ -76,7 +82,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
 
           if (listener?.type === "response") {
             listener
-              .listener(query)
+              .listener(query, { jobId })
               .then((response) => computeModuleApi.postResult(jobId, response))
               .catch((error) => {
                 const sanitizedError = isAxiosError(error) ? sanitizeAxiosError(error) : error;
@@ -85,10 +91,10 @@ export class QueryRunner<M extends QueryResponseMapping> {
               });
           } else if (listener?.type === "streaming") {
             const writable = new PassThrough();
-            listener.listener(query, writable);
+            listener.listener(query, writable, { jobId });
             computeModuleApi.postStreamingResult(jobId, writable);
           } else if (this.defaultListener != null) {
-            this.defaultListener(query, queryType)
+            this.defaultListener(query, queryType, { jobId })
               .then((response) =>
                 computeModuleApi.postResult(
                   jobId,
@@ -136,7 +142,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
   }
 
   public updateDefaultListener(
-    defaultListener: (query: any, queryType: string) => Promise<any>
+    defaultListener: (query: any, queryType: string, context: QueryContext) => Promise<any>
   ) {
     this.defaultListener = defaultListener;
   }
