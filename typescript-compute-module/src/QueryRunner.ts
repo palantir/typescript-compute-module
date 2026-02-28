@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { HttpStatusCode, isAxiosError } from "axios";
 import { Logger } from "./logger";
 import { Static, TObject } from "@sinclair/typebox";
@@ -41,6 +42,8 @@ export interface QueryContext {
   jobId: string;
 }
 
+export const queryContextStorage = new AsyncLocalStorage<QueryContext>();
+
 export type ResponseQueryListener<M extends QueryResponseMapping> = <
   T extends keyof M
 >(
@@ -77,39 +80,12 @@ export class QueryRunner<M extends QueryResponseMapping> {
         if (jobRequest.status === HttpStatusCode.Ok) {
           const { query, queryType, jobId } =
             jobRequest.data.computeModuleJobV1;
+          const context: QueryContext = { jobId };
           this.logger?.info(`Job received - Query: ${queryType}`, { job_id: jobId });
-          const listener = this.listeners[queryType];
 
-          if (listener?.type === "response") {
-            listener
-              .listener(query, { jobId })
-              .then((response) => computeModuleApi.postResult(jobId, response))
-              .catch((error) => {
-                const sanitizedError = isAxiosError(error) ? sanitizeAxiosError(error) : error;
-                this.logger?.error(`Error executing job: ${sanitizedError}`, { job_id: jobId });
-                computeModuleApi.postResult(jobId, QueryRunner.getFailedQueryResult(sanitizedError));
-              });
-          } else if (listener?.type === "streaming") {
-            const writable = new PassThrough();
-            listener.listener(query, writable, { jobId });
-            computeModuleApi.postStreamingResult(jobId, writable);
-          } else if (this.defaultListener != null) {
-            this.defaultListener(query, queryType, { jobId })
-              .then((response) =>
-                computeModuleApi.postResult(
-                  jobId,
-                  // Convert number to string as per response spec
-                  typeof response === "number" ? response.toString() : response
-                )
-              )
-              .catch((error) => {
-                const sanitizedError = isAxiosError(error) ? sanitizeAxiosError(error) : error;
-                this.logger?.error(`Error executing default listener: ${sanitizedError}`, { job_id: jobId });
-                computeModuleApi.postResult(jobId, QueryRunner.getFailedQueryResult(sanitizedError));
-              });
-          } else {
-            this.logger?.error(`No listener for query type: ${queryType}`);
-          }
+          queryContextStorage.run(context, () => {
+            this.dispatchJob(computeModuleApi, queryType, query, context);
+          });
         }
       } catch (e) {
         if (!isAxiosError(e)) {
@@ -145,6 +121,50 @@ export class QueryRunner<M extends QueryResponseMapping> {
     defaultListener: (query: any, queryType: string, context: QueryContext) => Promise<any>
   ) {
     this.defaultListener = defaultListener;
+  }
+
+  private dispatchJob(
+    computeModuleApi: ComputeModuleApi,
+    queryType: string,
+    query: any,
+    context: QueryContext
+  ): void {
+    const { jobId } = context;
+    const listener = this.listeners[queryType];
+
+    if (listener?.type === "response") {
+      listener
+        .listener(query, context)
+        .then((response) => computeModuleApi.postResult(jobId, response))
+        .catch((error) => this.handleJobError(computeModuleApi, jobId, "job", error));
+    } else if (listener?.type === "streaming") {
+      const writable = new PassThrough();
+      listener.listener(query, writable, context);
+      computeModuleApi.postStreamingResult(jobId, writable);
+    } else if (this.defaultListener != null) {
+      this.defaultListener(query, queryType, context)
+        .then((response) =>
+          computeModuleApi.postResult(
+            jobId,
+            // Convert number to string as per response spec
+            typeof response === "number" ? response.toString() : response
+          )
+        )
+        .catch((error) => this.handleJobError(computeModuleApi, jobId, "default listener", error));
+    } else {
+      this.logger?.error(`No listener for query type: ${queryType}`);
+    }
+  }
+
+  private handleJobError(
+    computeModuleApi: ComputeModuleApi,
+    jobId: string,
+    label: string,
+    error: unknown
+  ): void {
+    const sanitizedError = isAxiosError(error) ? sanitizeAxiosError(error) : error;
+    this.logger?.error(`Error executing ${label}: ${sanitizedError}`, { job_id: jobId });
+    computeModuleApi.postResult(jobId, QueryRunner.getFailedQueryResult(sanitizedError));
   }
 
   private static getFailedQueryResult(error: any): Record<string, string> {

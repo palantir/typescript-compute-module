@@ -1,4 +1,5 @@
 import { SlsLogger } from "../SlsLogger";
+import { queryContextStorage } from "../../QueryRunner";
 
 describe("SlsLogger", () => {
   let writtenLines: string[];
@@ -72,10 +73,11 @@ describe("SlsLogger", () => {
     expect(parseEntry().params.session_id).toBe("");
   });
 
-  it("should update job_id via setJobId", () => {
+  it("should read job_id from AsyncLocalStorage context", () => {
     const logger = new SlsLogger();
-    logger.setJobId("job-123");
-    logger.info("with job");
+    queryContextStorage.run({ jobId: "job-123" }, () => {
+      logger.info("with job");
+    });
 
     expect(parseEntry().params.job_id).toBe("job-123");
   });
