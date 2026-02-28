@@ -77,7 +77,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
         if (jobRequest.status === HttpStatusCode.Ok) {
           const { query, queryType, jobId } =
             jobRequest.data.computeModuleJobV1;
-          this.logger?.info(`Job received - ID: ${jobId} Query: ${queryType}`);
+          this.logger?.info(`Job received - Query: ${queryType}`, { job_id: jobId });
           const listener = this.listeners[queryType];
 
           if (listener?.type === "response") {
@@ -86,7 +86,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
               .then((response) => computeModuleApi.postResult(jobId, response))
               .catch((error) => {
                 const sanitizedError = isAxiosError(error) ? sanitizeAxiosError(error) : error;
-                this.logger?.error(`Error executing job - ID: ${jobId} Reason: ${sanitizedError}`);
+                this.logger?.error(`Error executing job: ${sanitizedError}`, { job_id: jobId });
                 computeModuleApi.postResult(jobId, QueryRunner.getFailedQueryResult(sanitizedError));
               });
           } else if (listener?.type === "streaming") {
@@ -104,7 +104,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
               )
               .catch((error) => {
                 const sanitizedError = isAxiosError(error) ? sanitizeAxiosError(error) : error;
-                this.logger?.error(`Error executing default listener - ID: ${jobId} Reason: ${sanitizedError}`);
+                this.logger?.error(`Error executing default listener: ${sanitizedError}`, { job_id: jobId });
                 computeModuleApi.postResult(jobId, QueryRunner.getFailedQueryResult(sanitizedError));
               });
           } else {

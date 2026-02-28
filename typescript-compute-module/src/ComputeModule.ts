@@ -21,6 +21,7 @@ import {
 } from "./services/getFoundryServices";
 import * as fs from "fs";
 import { isAxiosError } from "axios";
+import { SlsLogger } from "./logging/SlsLogger";
 
 export interface ComputeModuleOptions<
   M extends QueryResponseMapping = any,
@@ -104,8 +105,7 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
     isAutoRegistered,
     sources,
   }: O) {
-    this.logger =
-      logger != null ? loggerToInstanceLogger(logger, instanceId) : undefined;
+    this.logger = loggerToInstanceLogger(logger ?? new SlsLogger(), instanceId)
 
     const sourceCredentialsPath = process.env[ComputeModule.SOURCE_CREDENTIALS];
     this.sourceCredentials =

@@ -1,24 +1,39 @@
+export interface LogParams {
+  session_id?: string;
+  process_id?: string;
+  job_id?: string;
+  [key: string]: unknown;
+}
+
 export interface Logger {
-  log: (message: string) => void;
-  error: (message: string) => void;
-  info: (message: string) => void;
-  warn: (message: string) => void;
+  log: (message: string, params?: LogParams) => void;
+  debug?: (message: string, params?: LogParams) => void;
+  error: (message: string, params?: LogParams) => void;
+  info: (message: string, params?: LogParams) => void;
+  warn: (message: string, params?: LogParams) => void;
 }
 
 /**
- * Wraps a logger with an instance ID to differentiate logs from different instances if provided
+ * Wraps a logger with an instance ID prefix injected into every log call.
  */
 export const loggerToInstanceLogger = (
   logger: Logger,
   instanceId?: string
 ): Logger => {
-  if (instanceId == null) {
-    return logger;
-  }
+  const prefix = instanceId != null ? `[${instanceId}] ` : "";
+
   return {
-    log: (message: string) => logger.log(`[${instanceId}] ${message}`),
-    error: (message: string) => logger.error(`[${instanceId}] ${message}`),
-    info: (message: string) => logger.info(`[${instanceId}] ${message}`),
-    warn: (message: string) => logger.warn(`[${instanceId}] ${message}`),
+    log: (message, params) =>
+      logger.log(`${prefix}${message}`, params),
+    debug: logger.debug
+      ? (message, params) =>
+          logger.debug!(`${prefix}${message}`, params)
+      : undefined,
+    error: (message, params) =>
+      logger.error(`${prefix}${message}`, params),
+    info: (message, params) =>
+      logger.info(`${prefix}${message}`, params),
+    warn: (message, params) =>
+      logger.warn(`${prefix}${message}`, params),
   };
 };

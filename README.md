@@ -16,6 +16,7 @@ Node.JS compatible implementation of the Palantir Compute Module specification.
   - [Pipelines Mode](#pipelines-mode)
     - [Retrieving aliases](#retrieving-aliases)
   - [General usage](#general-usage)
+    - [Logging](#logging)
     - [Retrieving source credentials](#retrieving-source-credentials)
     - [Retrieving environment details](#retrieving-environment-details)
     - [Retrieving Foundry services](#retrieving-foundry-services)
@@ -98,11 +99,11 @@ computeModule.registerStreaming("activeUsers", async ({ users }, writeable) => {
 Definitions can be generated using [typebox](https://github.com/sinclairzx81/typebox) allowing the Compute Module to register functions at runtime, while maintaining typesafety at compile time.
 
 ```ts
-import { ComputeModule } from "@palantir/compute-module";
+import { ComputeModule, SlsLogger } from "@palantir/compute-module";
 import { Type } from "@sinclair/typebox";
 
 const myModule = new ComputeModule({
-  logger: console,
+  logger: new SlsLogger(),
   definitions: {
     addOne: {
       input: Type.Object({
@@ -132,6 +133,41 @@ const result = await someDataFetcherForId(resourceId);
 ## General usage
 
 The following features are available in both Pipelines and Functions mode in order to interact with Palantir Foundry:
+
+### Logging and SLS format
+
+Anything written to the stdout or stderr streams will be logged. However, we recommend using the `SlsLogger` to emit SLS-formatted logs.
+
+Standard Logging Specification (SLS) is a Palantir-defined structure for log messages. Since the structure of SLS logs is known, our infrastructure can programmatically parse SLS logs and neatly display values in the compute module log viewer's Tabular mode.
+Selecting SLS format will only display logs that adhere to the SLS structure. The `SlsLogger` provided by this SDK will automatically emit logs with the SLS structure.
+
+Use it as follows:
+
+```ts
+import { ComputeModule, SlsLogger } from "@palantir/compute-module";
+import { Type } from "@sinclair/typebox";
+
+const logger = new SlsLogger();
+
+const myModule = new ComputeModule({
+  logger,
+  definitions: {
+    addOne: {
+      input: Type.Object({ value: Type.Number() }),
+      output: Type.Object({ value: Type.Number() }),
+    },
+  },
+});
+
+myModule.register("addOne", async ({ value }) => {
+  logger.info("Processing addOne", { input_value: String(value) });
+  return { value: value + 1 };
+});
+```
+
+Custom key-value pairs can be passed as the second argument to any log method (`debug`, `info`, `warn`, `error`) and will be added to the params of the log entry.
+
+Any object with `log`, `info`, `warn`, and `error` methods (e.g. `console`) is also accepted as a logger.
 
 ### Retrieving source credentials
 
