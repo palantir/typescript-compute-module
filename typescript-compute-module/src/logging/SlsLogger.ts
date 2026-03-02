@@ -1,5 +1,6 @@
-import { isMainThread, threadId } from "worker_threads";
+import { isMainThread, threadId } from "node:worker_threads";
 import type { Logger, LogParams } from "../logger";
+import { queryContextStorage } from "../QueryRunner";
 
 type SlsLogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
 
@@ -21,15 +22,6 @@ type SlsLogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
  * ```
  */
 export class SlsLogger implements Logger {
-  private jobId: string = "";
-
-  /**
-   * Updates the job ID injected into every subsequent log entry's params.
-   */
-  setJobId(jobId: string): void {
-    this.jobId = jobId;
-  }
-
   debug(message: string, params?: LogParams): void {
     this.write("DEBUG", message, params);
   }
@@ -55,10 +47,11 @@ export class SlsLogger implements Logger {
     message: string,
     params?: LogParams
   ): void {
+    const context = queryContextStorage.getStore();
     const baseParams: Record<string, string> = {
       session_id: process.env["COMPUTE_SESSION_ID"] ?? "",
       process_id: String(process.pid),
-      job_id: this.jobId,
+      job_id: context?.jobId ?? "",
     };
     const entry = {
       type: "service.1",
