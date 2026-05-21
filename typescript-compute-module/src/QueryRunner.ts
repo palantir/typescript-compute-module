@@ -139,8 +139,20 @@ export class QueryRunner<M extends QueryResponseMapping> {
         .catch((error) => this.handleJobError(computeModuleApi, jobId, "job", error));
     } else if (listener?.type === "streaming") {
       const writable = new PassThrough();
-      listener.listener(query, writable, context);
-      computeModuleApi.postStreamingResult(jobId, writable);
+      try {
+        listener.listener(query, writable, context);
+      } catch (error) {
+        writable.destroy();
+        this.handleJobError(computeModuleApi, jobId, "streaming listener", error);
+        return;
+      }
+      try {
+        computeModuleApi.postStreamingResult(jobId, writable).catch((error) => {
+          this.handleStreamingResultError(jobId, writable, error);
+        });
+      } catch (error) {
+        this.handleStreamingResultError(jobId, writable, error);
+      }
     } else if (this.defaultListener != null) {
       this.defaultListener(query, queryType, context)
         .then((response) =>
@@ -154,6 +166,19 @@ export class QueryRunner<M extends QueryResponseMapping> {
     } else {
       this.logger?.error(`No listener for query type: ${queryType}`);
     }
+  }
+
+  private handleStreamingResultError(
+    jobId: string,
+    writable: PassThrough,
+    error: unknown
+  ): void {
+    const sanitizedError = isAxiosError(error) ? sanitizeAxiosError(error) : error;
+    const formattedError = isAxiosError(sanitizedError)
+      ? formatAxiosErrorResponse(sanitizedError)
+      : sanitizedError;
+    this.logger?.error(`Error streaming job result: ${formattedError}`, { job_id: jobId });
+    writable.destroy();
   }
 
   private handleJobError(
