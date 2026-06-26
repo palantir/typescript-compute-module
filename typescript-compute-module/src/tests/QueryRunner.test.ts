@@ -66,10 +66,10 @@ describe("QueryRunner", () => {
       expect(responseListener).toHaveBeenCalledTimes(1);
       expect(responseListener).toHaveBeenCalledWith(
         { name: "World" },
-        { jobId }
+        expect.objectContaining({ jobId })
       );
       expect(receivedContexts).toHaveLength(1);
-      expect(receivedContexts[0]).toEqual({ jobId });
+      expect(receivedContexts[0]).toEqual(expect.objectContaining({ jobId }));
     });
 
     it("should pass QueryContext with jobId to streaming listeners", async () => {
@@ -122,10 +122,10 @@ describe("QueryRunner", () => {
           write: expect.any(Function),
           end: expect.any(Function),
         }),
-        { jobId }
+        expect.objectContaining({ jobId })
       );
       expect(receivedContexts).toHaveLength(1);
-      expect(receivedContexts[0]).toEqual({ jobId });
+      expect(receivedContexts[0]).toEqual(expect.objectContaining({ jobId }));
     });
 
     it("should pass different jobIds for different jobs", async () => {
@@ -180,8 +180,61 @@ describe("QueryRunner", () => {
 
       expect(responseListener).toHaveBeenCalledTimes(2);
       expect(receivedContexts).toHaveLength(2);
-      expect(receivedContexts[0]).toEqual({ jobId: jobIds[0] });
-      expect(receivedContexts[1]).toEqual({ jobId: jobIds[1] });
+      expect(receivedContexts[0]).toEqual(expect.objectContaining({ jobId: jobIds[0] }));
+      expect(receivedContexts[1]).toEqual(expect.objectContaining({ jobId: jobIds[1] }));
+    });
+
+    it("should populate userId, authHeader, and tempCredsAuthToken from job payload", async () => {
+      const jobId = "context-fields-job-789";
+      const authHeader = "Bearer test-token";
+      const userId = "user-abc-123";
+      const temporaryCredentialsAuthToken = "temp-creds-xyz";
+      const receivedContexts: (QueryContext | undefined)[] = [];
+
+      const responseListener = jest.fn(
+        async (message: { name: string }, context?: QueryContext) => {
+          receivedContexts.push(context);
+          return `Hello, ${message.name}`;
+        }
+      );
+
+      mockComputeModuleApi.getJobRequest
+        .mockResolvedValueOnce({
+          status: HttpStatusCode.Ok,
+          data: {
+            type: "computeModuleJobV1",
+            computeModuleJobV1: {
+              jobId,
+              queryType: "testQuery",
+              query: { name: "World" },
+              authHeader,
+              userId,
+              temporaryCredentialsAuthToken,
+            },
+          },
+        } as any)
+        .mockImplementation(() => new Promise(() => {})); // Block on second call
+
+      const queryRunner = new QueryRunner<typeof TEST_QUERY_MAPPING>({
+        testQuery: {
+          type: "response",
+          listener: responseListener,
+        },
+      });
+
+      // Run in background and wait for the listener to be called
+      const runPromise = queryRunner.run(mockComputeModuleApi);
+
+      // Wait for the listener to be invoked
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(receivedContexts).toHaveLength(1);
+      expect(receivedContexts[0]).toEqual({
+        jobId,
+        authHeader,
+        userId,
+        tempCredsAuthToken: temporaryCredentialsAuthToken,
+      });
     });
   });
 
@@ -331,10 +384,10 @@ describe("QueryRunner", () => {
       expect(defaultListener).toHaveBeenCalledWith(
         { data: "test" },
         "unknownQuery",
-        { jobId }
+        expect.objectContaining({ jobId })
       );
       expect(receivedContexts).toHaveLength(1);
-      expect(receivedContexts[0]).toEqual({ jobId });
+      expect(receivedContexts[0]).toEqual(expect.objectContaining({ jobId }));
       expect(receivedQueryTypes).toEqual(["unknownQuery"]);
 
       await new Promise((resolve) => setTimeout(resolve, 50));

@@ -40,6 +40,9 @@ export type StreamingQueryListener<M extends QueryResponseMapping> = <
 
 export interface QueryContext {
   jobId: string;
+  authHeader: string;
+  tempCredsAuthToken?: string;
+  userId?: string;
 }
 
 export const queryContextStorage = new AsyncLocalStorage<QueryContext>();
@@ -78,9 +81,9 @@ export class QueryRunner<M extends QueryResponseMapping> {
         }
 
         if (jobRequest.status === HttpStatusCode.Ok) {
-          const { query, queryType, jobId } =
+          const { query, queryType, jobId, authHeader = "", temporaryCredentialsAuthToken, userId } =
             jobRequest.data.computeModuleJobV1;
-          const context: QueryContext = { jobId };
+          const context: QueryContext = { jobId, authHeader, tempCredsAuthToken: temporaryCredentialsAuthToken, userId };
           this.logger?.info(`Job received - Query: ${queryType}`, { job_id: jobId });
 
           queryContextStorage.run(context, () => {
