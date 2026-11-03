@@ -53,6 +53,9 @@ export class ComputeModuleApi {
         jobId: string;
         queryType: string;
         query: any;
+        authHeader?: string;
+        temporaryCredentialsAuthToken?: string;
+        userId?: string;
       };
     }>(this.connectionInformation.getJobUri);
 

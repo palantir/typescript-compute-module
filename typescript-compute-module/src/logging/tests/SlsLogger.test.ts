@@ -75,7 +75,7 @@ describe("SlsLogger", () => {
 
   it("should read job_id from AsyncLocalStorage context", () => {
     const logger = new SlsLogger();
-    queryContextStorage.run({ jobId: "job-123" }, () => {
+    queryContextStorage.run({ jobId: "job-123", authHeader: "" }, () => {
       logger.info("with job");
     });
 
