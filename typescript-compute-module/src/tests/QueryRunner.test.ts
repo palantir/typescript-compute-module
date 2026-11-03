@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import { HttpStatusCode } from "axios";
+import { AxiosError, HttpStatusCode } from "axios";
 import { QueryRunner, QueryResponseMapping, QueryContext } from "../QueryRunner";
 import { ComputeModuleApi } from "../api/ComputeModuleApi";
 
@@ -19,7 +19,7 @@ describe("QueryRunner", () => {
     mockComputeModuleApi = {
       getJobRequest: jest.fn(),
       postResult: jest.fn().mockResolvedValue(undefined),
-      postStreamingResult: jest.fn(),
+      postStreamingResult: jest.fn().mockResolvedValue(undefined),
       postSchema: jest.fn(),
     } as unknown as jest.Mocked<ComputeModuleApi>;
   });
@@ -286,6 +286,101 @@ describe("QueryRunner", () => {
       expect(mockComputeModuleApi.postStreamingResult).toHaveBeenCalledWith(
         jobId,
         expect.anything()
+      );
+    });
+
+    it("should handle streaming result post failures without rethrowing", async () => {
+      const jobId = "streaming-post-error-job";
+      const logger = {
+        log: jest.fn(),
+        error: jest.fn(),
+        info: jest.fn(),
+        warn: jest.fn(),
+      };
+      const axiosError = new AxiosError(
+        "Request failed with status code 500",
+        "ERR_BAD_RESPONSE"
+      );
+
+      mockComputeModuleApi.postStreamingResult.mockRejectedValueOnce(axiosError);
+      mockComputeModuleApi.getJobRequest
+        .mockResolvedValueOnce({
+          status: HttpStatusCode.Ok,
+          data: {
+            type: "computeModuleJobV1",
+            computeModuleJobV1: {
+              jobId,
+              queryType: "testQuery",
+              query: { name: "StreamCompat" },
+            },
+          },
+        } as any)
+        .mockImplementation(() => new Promise(() => {}));
+
+      const queryRunner = new QueryRunner<typeof TEST_QUERY_MAPPING>(
+        {
+          testQuery: {
+            type: "streaming",
+            listener: (_message, responseStream) => {
+              responseStream.write("partial response");
+            },
+          },
+        },
+        undefined,
+        logger
+      );
+
+      queryRunner.run(mockComputeModuleApi);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const postedStream = mockComputeModuleApi.postStreamingResult.mock
+        .calls[0][1] as any;
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining("Error streaming job result"),
+        { job_id: jobId }
+      );
+      expect(postedStream.destroyed).toBe(true);
+      expect(mockComputeModuleApi.postResult).not.toHaveBeenCalled();
+    });
+
+    it("should report synchronous streaming listener errors as failed results", async () => {
+      const jobId = "streaming-listener-error-job";
+
+      mockComputeModuleApi.getJobRequest
+        .mockResolvedValueOnce({
+          status: HttpStatusCode.Ok,
+          data: {
+            type: "computeModuleJobV1",
+            computeModuleJobV1: {
+              jobId,
+              queryType: "testQuery",
+              query: { name: "StreamCompat" },
+            },
+          },
+        } as any)
+        .mockImplementation(() => new Promise(() => {}));
+
+      const queryRunner = new QueryRunner<typeof TEST_QUERY_MAPPING>({
+        testQuery: {
+          type: "streaming",
+          listener: () => {
+            throw new Error("Streaming listener failed");
+          },
+        },
+      });
+
+      queryRunner.run(mockComputeModuleApi);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockComputeModuleApi.postStreamingResult).not.toHaveBeenCalled();
+      expect(mockComputeModuleApi.postResult).toHaveBeenCalledWith(
+        jobId,
+        expect.objectContaining({
+          error: "Error",
+          reason: "Streaming listener failed",
+        })
       );
     });
   });

@@ -67,7 +67,7 @@ export class ComputeModuleApi {
       }
     );
 
-  public postStreamingResult = (jobId: string, response: Writable) => {
+  public postStreamingResult = (jobId: string, response: Writable) =>
     this.axiosInstance.post(
       this.connectionInformation.postResultUri + "/" + jobId,
       response,
@@ -77,7 +77,6 @@ export class ComputeModuleApi {
         },
       }
     );
-  }
  
 
   public postSchema = (schemas: Schema[]) =>
