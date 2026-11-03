@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG NODE_VERSION=18.18.0
+ARG NODE_VERSION=22.23.4
 
 FROM --platform=amd64 node:${NODE_VERSION} as builder
 
