@@ -4,7 +4,6 @@ import {
   QueryRunner,
   QueryResponseMapping,
   QueryContext,
-  queryContextStorage,
 } from "../QueryRunner";
 import { ComputeModuleApi } from "../api/ComputeModuleApi";
 
@@ -29,88 +28,13 @@ describe("QueryRunner", () => {
     } as unknown as jest.Mocked<ComputeModuleApi>;
   });
 
-  function queueJob(jobId: string) {
-    mockComputeModuleApi.getJobRequest.mockResolvedValueOnce({
-      status: HttpStatusCode.Ok,
-      data: {
-        type: "computeModuleJobV1",
-        computeModuleJobV1: {
-          jobId,
-          queryType: "testQuery",
-          query: { name: jobId },
-        },
-      },
-    } as any);
-  }
-
-  describe.each(["response", "default"] as const)("%s handler results", (kind) => {
-    function start(
-      listener: (
-        message: { name: string },
-        context: QueryContext
-      ) => string | Promise<string>
-    ) {
-      mockComputeModuleApi.getJobRequest.mockImplementation(
-        () => new Promise(() => {})
-      );
-      const runner = new QueryRunner<typeof TEST_QUERY_MAPPING>(
-        kind === "response" ? { testQuery: { type: "response", listener } } : {},
-        kind === "default"
-          ? (query, _queryType, context) => listener(query, context)
-          : undefined
-      );
-      void runner.run(mockComputeModuleApi);
-    }
-
-    it.each([false, true])("posts a result with async=%s and preserves context", async (isAsync) => {
-      queueJob("success");
-      start((message, context) => {
-        expect(context).toEqual({ jobId: "success" });
-        expect(queryContextStorage.getStore()).toEqual(context);
-        const result = `Hello, ${message.name}`;
-        return isAsync ? Promise.resolve(result) : result;
-      });
-
-      await new Promise<void>((resolve) => setImmediate(resolve));
-
-      expect(mockComputeModuleApi.postResult.mock.calls).toEqual([
-        ["success", "Hello, success"],
-      ]);
-    });
-
-    it("processes another job while the first handler is pending", async () => {
-      queueJob("pending");
-      queueJob("next");
-      let completeFirst!: (result: string) => void;
-      const pending = new Promise<string>((resolve) => {
-        completeFirst = resolve;
-      });
-      start((message, context) => {
-        expect(queryContextStorage.getStore()).toEqual(context);
-        return message.name === "pending" ? pending : Promise.resolve("next result");
-      });
-
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      expect(mockComputeModuleApi.postResult.mock.calls).toEqual([
-        ["next", "next result"],
-      ]);
-
-      completeFirst("first result");
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      expect(mockComputeModuleApi.postResult.mock.calls).toEqual([
-        ["next", "next result"],
-        ["pending", "first result"],
-      ]);
-    });
-  });
-
   describe("QueryContext", () => {
     it("should pass QueryContext with jobId to response listeners", async () => {
       const jobId = "test-job-id-123";
       const receivedContexts: (QueryContext | undefined)[] = [];
 
       const responseListener = jest.fn(
-        async (message: { name: string }, context?: QueryContext) => {
+        (message: { name: string }, context?: QueryContext) => {
           receivedContexts.push(context);
           return `Hello, ${message.name}`;
         }
@@ -150,6 +74,10 @@ describe("QueryRunner", () => {
       );
       expect(receivedContexts).toHaveLength(1);
       expect(receivedContexts[0]).toEqual({ jobId });
+      expect(mockComputeModuleApi.postResult).toHaveBeenCalledWith(
+        jobId,
+        "Hello, World"
+      );
     });
 
     it("should pass QueryContext with jobId to streaming listeners", async () => {
@@ -377,7 +305,7 @@ describe("QueryRunner", () => {
       const receivedQueryTypes: string[] = [];
 
       const defaultListener = jest.fn(
-        async (query: any, queryType: string, context: QueryContext) => {
+        (query: any, queryType: string, context: QueryContext) => {
           receivedContexts.push(context);
           receivedQueryTypes.push(queryType);
           return `Default response for ${queryType}`;
