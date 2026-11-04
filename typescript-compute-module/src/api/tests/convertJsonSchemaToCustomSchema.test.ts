@@ -1,4 +1,4 @@
-import { Type } from "@sinclair/typebox";
+import { Type, TypeGuard } from "@sinclair/typebox";
 import { convertJsonSchemaToCustomSchema } from "../convertJsonSchematoFoundrySchema";
 
 const EXAMPLE_DEFINITION = {
@@ -30,6 +30,44 @@ const CHAT_DEFINITION = {
 };
 
 describe("Type tests", () => {
+  it.each([
+    ["integer", Type.Integer(), { type: "integer", integer: {} }],
+    ["number", Type.Number(), { type: "float", float: {} }],
+    ["boolean", Type.Boolean(), { type: "boolean", boolean: {} }],
+    ["array", Type.Array(Type.Integer()), {
+      type: "list",
+      list: { elementsType: { type: "integer", integer: {} } },
+    }],
+    ["object", Type.Object({ count: Type.Optional(Type.Integer()) }), {
+      type: "anonymousCustomType",
+      anonymousCustomType: {
+        fields: {
+          count: {
+            type: "optionalType",
+            optionalType: { wrappedType: { type: "integer", integer: {} } },
+          },
+        },
+      },
+    }],
+  ] as const)("preserves optional %s schemas", (_name, property, expected) => {
+    const optional = Type.Optional(property);
+    const schema = convertJsonSchemaToCustomSchema(
+      "test",
+      Type.Object({ value: optional }),
+      Type.String()
+    );
+    expect(schema.inputs[0]).toStrictEqual({
+      name: "value",
+      required: false,
+      dataType: {
+        type: "optionalType",
+        optionalType: { wrappedType: expected },
+      },
+      constraints: [],
+    });
+    expect(TypeGuard.IsOptional(optional)).toBe(true);
+  });
+
   it("should have the same types as a simple definition", () => {
     const schema = convertJsonSchemaToCustomSchema(
       "isFirstName",
