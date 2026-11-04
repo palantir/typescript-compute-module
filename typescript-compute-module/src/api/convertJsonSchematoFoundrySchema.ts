@@ -7,6 +7,7 @@ import {
   TArray,
   TSchema,
   TypeGuard,
+  Type,
 } from "@sinclair/typebox";
 import { Schema } from "./schemaTypes";
 
@@ -44,7 +45,7 @@ function convertJsonType(jsonType: TSchema): Schema.DataType {
     return {
       type: "optionalType",
       optionalType: {
-        wrappedType: convertJsonType(jsonType.type)
+        wrappedType: convertJsonType(Type.Optional(jsonType, false))
       }
     }
   }
