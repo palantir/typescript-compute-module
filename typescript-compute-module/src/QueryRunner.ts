@@ -9,6 +9,7 @@ import {
 } from "./api/ComputeModuleApi";
 import { SupportedTypeboxTypes } from "./api/convertJsonSchematoFoundrySchema";
 import { PassThrough } from "stream";
+import { finished } from "stream/promises";
 
 export interface QueryResponseMapping {
   [queryType: string]: {
@@ -137,15 +138,28 @@ export class QueryRunner<M extends QueryResponseMapping> {
     const listener = this.listeners[queryType];
 
     if (listener?.type === "response") {
-      Promise.resolve(listener.listener(query, context))
+      // Defer invocation so synchronous throws follow the job error path too
+      Promise.resolve()
+        .then(() => listener.listener(query, context))
         .then((response) => computeModuleApi.postResult(jobId, response))
         .catch((error) => this.handleJobError(computeModuleApi, jobId, "job", error));
-    } else if (listener?.type === "streaming") {
-      const writable = new PassThrough();
-      listener.listener(query, writable, context);
-      computeModuleApi.postStreamingResult(jobId, writable);
-    } else if (this.defaultListener != null) {
-      Promise.resolve(this.defaultListener(query, queryType, context))
+      return;
+    }
+
+    if (listener?.type === "streaming") {
+      void this.dispatchStreamingJob(
+        computeModuleApi,
+        listener.listener,
+        query,
+        context
+      );
+      return;
+    }
+
+    if (this.defaultListener != null) {
+      const defaultListener = this.defaultListener;
+      Promise.resolve()
+        .then(() => defaultListener(query, queryType, context))
         .then((response) =>
           computeModuleApi.postResult(
             jobId,
@@ -154,8 +168,46 @@ export class QueryRunner<M extends QueryResponseMapping> {
           )
         )
         .catch((error) => this.handleJobError(computeModuleApi, jobId, "default listener", error));
-    } else {
-      this.logger?.error(`No listener for query type: ${queryType}`);
+      return;
+    }
+
+    this.logger?.error(`No listener for query type: ${queryType}`);
+  }
+
+  private async dispatchStreamingJob<N extends QueryResponseMapping>(
+    computeModuleApi: ComputeModuleApi,
+    listener: StreamingQueryListener<N>,
+    query: any,
+    context: QueryContext
+  ): Promise<void> {
+    const { jobId } = context;
+    const writable = new PassThrough();
+    let result: unknown;
+    try {
+      result = listener(query, writable, context);
+    } catch (error) {
+      writable.destroy();
+      this.handleJobError(computeModuleApi, jobId, "streaming job", error);
+      return;
+    }
+
+    try {
+      // Start uploading before awaiting the producer so backpressure cannot block it
+      await Promise.all([
+        result,
+        Promise.resolve().then(() =>
+          computeModuleApi.postStreamingResult(jobId, writable)
+        ),
+        // Observe stream errors even if the upload fails before attaching its listeners
+        finished(writable),
+      ]);
+    } catch (error) {
+      const sanitizedError = this.logJobError(jobId, "streaming job", error);
+      writable.destroy(
+        sanitizedError instanceof Error
+          ? sanitizedError
+          : new Error(String(sanitizedError))
+      );
     }
   }
 
@@ -165,9 +217,14 @@ export class QueryRunner<M extends QueryResponseMapping> {
     label: string,
     error: unknown
   ): void {
+    const sanitizedError = this.logJobError(jobId, label, error);
+    computeModuleApi.postResult(jobId, QueryRunner.getFailedQueryResult(sanitizedError));
+  }
+
+  private logJobError(jobId: string, label: string, error: unknown): unknown {
     const sanitizedError = isAxiosError(error) ? sanitizeAxiosError(error) : error;
     this.logger?.error(`Error executing ${label}: ${sanitizedError}`, { job_id: jobId });
-    computeModuleApi.postResult(jobId, QueryRunner.getFailedQueryResult(sanitizedError));
+    return sanitizedError;
   }
 
   private static getFailedQueryResult(error: any): Record<string, string> {

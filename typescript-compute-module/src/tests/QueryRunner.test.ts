@@ -4,8 +4,11 @@ import {
   QueryRunner,
   QueryResponseMapping,
   QueryContext,
+  queryContextStorage,
+  StreamingQueryListener,
 } from "../QueryRunner";
 import { ComputeModuleApi } from "../api/ComputeModuleApi";
+import { PassThrough } from "stream";
 
 const TEST_QUERY_MAPPING = {
   testQuery: {
@@ -26,6 +29,257 @@ describe("QueryRunner", () => {
       postStreamingResult: jest.fn(),
       postSchema: jest.fn(),
     } as unknown as jest.Mocked<ComputeModuleApi>;
+  });
+
+  function queueJob(jobId: string) {
+    mockComputeModuleApi.getJobRequest.mockResolvedValueOnce({
+      status: HttpStatusCode.Ok,
+      data: {
+        type: "computeModuleJobV1",
+        computeModuleJobV1: {
+          jobId,
+          queryType: "testQuery",
+          query: { name: jobId },
+        },
+      },
+    } as any);
+  }
+
+  describe.each(["response", "default"] as const)("%s handler failures", (kind) => {
+    function start(
+      listener: (
+        message: { name: string },
+        context: QueryContext
+      ) => string | Promise<string>
+    ) {
+      mockComputeModuleApi.getJobRequest.mockImplementation(
+        () => new Promise(() => {})
+      );
+      const runner = new QueryRunner<typeof TEST_QUERY_MAPPING>(
+        kind === "response" ? { testQuery: { type: "response", listener } } : {},
+        kind === "default"
+          ? (query, _queryType, context) => listener(query, context)
+          : undefined
+      );
+      void runner.run(mockComputeModuleApi);
+    }
+
+    it.each([false, true])("reports failure with async=%s and processes the next job", async (isAsync) => {
+      queueJob("failure");
+      queueJob("next");
+      const error = new TypeError("Invalid query");
+      start((message) => {
+        if (message.name === "failure") {
+          if (isAsync) return Promise.reject(error);
+          throw error;
+        }
+        return Promise.resolve("recovered");
+      });
+
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(mockComputeModuleApi.postResult).toHaveBeenCalledTimes(2);
+      expect(mockComputeModuleApi.postResult).toHaveBeenCalledWith("failure", {
+        error: "TypeError",
+        reason: "Invalid query",
+      });
+      expect(mockComputeModuleApi.postResult).toHaveBeenCalledWith(
+        "next",
+        "recovered"
+      );
+    });
+  });
+
+  describe("streaming handler failures", () => {
+    const logger = {
+      log: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      mockComputeModuleApi.postStreamingResult.mockImplementation(
+        (_jobId, stream) => new Promise((resolve, reject) => {
+          stream.on("error", reject);
+          stream.on("end", resolve);
+          (stream as PassThrough).resume();
+        })
+      );
+    });
+
+    function start(listener: StreamingQueryListener<typeof TEST_QUERY_MAPPING>) {
+      mockComputeModuleApi.getJobRequest.mockImplementation(
+        () => new Promise(() => {})
+      );
+      const runner = new QueryRunner<typeof TEST_QUERY_MAPPING>(
+        { testQuery: { type: "streaming", listener } },
+        undefined,
+        logger
+      );
+      void runner.run(mockComputeModuleApi);
+    }
+
+    it.each([false, true])("reports a synchronous throw before upload with buffered data=%s", async (writeFirst) => {
+      queueJob("failure");
+      queueJob("next");
+      let failedStream!: PassThrough;
+      start((message, stream) => {
+        if (message.name === "failure") {
+          failedStream = stream as PassThrough;
+          if (writeFirst) stream.write("partial");
+          throw new TypeError("Invalid stream");
+        }
+        stream.write("next result");
+        stream.end();
+      });
+
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(failedStream.destroyed).toBe(true);
+      expect(mockComputeModuleApi.postResult.mock.calls).toEqual([
+        ["failure", { error: "TypeError", reason: "Invalid stream" }],
+      ]);
+      expect(mockComputeModuleApi.postStreamingResult).toHaveBeenCalledTimes(1);
+      expect(mockComputeModuleApi.postStreamingResult).toHaveBeenCalledWith(
+        "next",
+        expect.any(PassThrough)
+      );
+      expect(logger.error).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([false, true])("aborts a rejected producer without posting a second response with partial data=%s", async (writeFirst) => {
+      queueJob("failure");
+      const error = new TypeError("Producer failed");
+      let failedStream!: PassThrough;
+      let rejectProducer!: (error: Error) => void;
+      const producer = new Promise<void>((_resolve, reject) => {
+        rejectProducer = reject;
+      });
+      start((_message, stream, context) => {
+        expect(queryContextStorage.getStore()).toEqual(context);
+        failedStream = stream as PassThrough;
+        if (writeFirst) stream.write("partial");
+        return producer;
+      });
+
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(mockComputeModuleApi.postStreamingResult).toHaveBeenCalledTimes(1);
+      expect(failedStream.destroyed).toBe(false);
+
+      rejectProducer(error);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(failedStream.destroyed).toBe(true);
+      expect(failedStream.errored).toBe(error);
+      expect(mockComputeModuleApi.postResult).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledWith(
+        "Error executing streaming job: TypeError: Producer failed",
+        { job_id: "failure" }
+      );
+    });
+
+    it("aborts an immediately rejected producer", async () => {
+      queueJob("failure");
+      const error = new Error("Immediate failure");
+      start(() => Promise.reject(error));
+
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      const stream = mockComputeModuleApi.postStreamingResult.mock.calls[0][1] as PassThrough;
+      expect(stream.errored).toBe(error);
+      expect(mockComputeModuleApi.postResult).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([false, true])("handles upload failures with synchronous=%s", async (isSync) => {
+      queueJob("failure");
+      const error = new Error("Upload failed");
+      mockComputeModuleApi.postStreamingResult.mockImplementation(() => {
+        if (isSync) throw error;
+        return Promise.reject(error);
+      });
+      start(() => {});
+
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      const stream = mockComputeModuleApi.postStreamingResult.mock.calls[0][1] as PassThrough;
+      expect(stream.destroyed).toBe(true);
+      expect(stream.errored).toBe(error);
+      expect(mockComputeModuleApi.postResult).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledTimes(1);
+    });
+
+    it("handles a stream error when the transport has no error listener", async () => {
+      queueJob("failure");
+      const error = new Error("Stream failed");
+      mockComputeModuleApi.postStreamingResult.mockImplementation(
+        () => new Promise(() => {})
+      );
+      start(() => {});
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      const stream = mockComputeModuleApi.postStreamingResult.mock.calls[0][1] as PassThrough;
+      stream.destroy(error);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(mockComputeModuleApi.postResult).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledWith(
+        "Error executing streaming job: Error: Stream failed",
+        { job_id: "failure" }
+      );
+    });
+
+    it("handles simultaneous producer and upload rejections once", async () => {
+      queueJob("failure");
+      mockComputeModuleApi.postStreamingResult.mockRejectedValue(
+        new Error("Upload failed")
+      );
+      start(() => Promise.reject(new Error("Producer failed")));
+
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      const stream = mockComputeModuleApi.postStreamingResult.mock.calls[0][1] as PassThrough;
+      expect(stream.destroyed).toBe(true);
+      expect(mockComputeModuleApi.postResult).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledTimes(1);
+    });
+
+    it("uploads while the producer is pending and keeps processing jobs", async () => {
+      queueJob("pending");
+      queueJob("next");
+      let finishProducer!: () => void;
+      const producer = new Promise<void>((resolve) => {
+        finishProducer = resolve;
+      });
+      const chunks: string[] = [];
+      mockComputeModuleApi.postStreamingResult.mockImplementation(
+        (_jobId, stream) => new Promise((resolve, reject) => {
+          stream.on("data", (chunk) => chunks.push(chunk.toString()));
+          stream.on("end", resolve);
+          stream.on("error", reject);
+        })
+      );
+      start(async (message, stream, context) => {
+        if (message.name === "pending") await producer;
+        expect(queryContextStorage.getStore()).toEqual(context);
+        stream.write(message.name);
+        stream.end();
+      });
+
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(mockComputeModuleApi.postStreamingResult).toHaveBeenCalledTimes(2);
+      expect(chunks).toEqual(["next"]);
+
+      finishProducer();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(chunks).toEqual(["next", "pending"]);
+      expect(mockComputeModuleApi.postResult).not.toHaveBeenCalled();
+      expect(logger.error).not.toHaveBeenCalled();
+    });
   });
 
   describe("QueryContext", () => {
