@@ -4,6 +4,7 @@ import {
   QueryRunner,
   QueryListener,
   QueryContext,
+  DefaultQueryListener,
 } from "./QueryRunner";
 import {
   ComputeModuleApi,
@@ -96,7 +97,7 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
   private listeners: Partial<{
     [K in keyof O["definitions"]]: QueryListener<Pick<O["definitions"], K>>;
   }> = {};
-  private defaultListener?: (data: any, queryName: string, context: QueryContext) => Promise<any>;
+  private defaultListener?: DefaultQueryListener;
 
   constructor({
     logger,
@@ -155,7 +156,9 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
     listener: (
       data: Static<O["definitions"][T]["input"]>,
       context: QueryContext
-    ) => Promise<Static<O["definitions"][T]["output"]>>
+    ) =>
+      | Static<O["definitions"][T]["output"]>
+      | Promise<Static<O["definitions"][T]["output"]>>
   ) {
     this.listeners[queryName] = { type: "response", listener };
     return this;
@@ -197,7 +200,7 @@ export class ComputeModule<const O extends ComputeModuleOptions> {
    * @param listener Function to run when the query is received
    * @returns
    */
-  public default(listener: (data: any, queryName: string, context: QueryContext) => Promise<any>) {
+  public default(listener: DefaultQueryListener) {
     this.defaultListener = listener;
     this.queryRunner?.updateDefaultListener(listener);
     return this;

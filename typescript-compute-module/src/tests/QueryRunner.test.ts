@@ -1,6 +1,11 @@
 import { Type } from "@sinclair/typebox";
 import { HttpStatusCode } from "axios";
-import { QueryRunner, QueryResponseMapping, QueryContext } from "../QueryRunner";
+import {
+  QueryRunner,
+  QueryResponseMapping,
+  QueryContext,
+  queryContextStorage,
+} from "../QueryRunner";
 import { ComputeModuleApi } from "../api/ComputeModuleApi";
 
 const TEST_QUERY_MAPPING = {
@@ -22,6 +27,81 @@ describe("QueryRunner", () => {
       postStreamingResult: jest.fn(),
       postSchema: jest.fn(),
     } as unknown as jest.Mocked<ComputeModuleApi>;
+  });
+
+  function queueJob(jobId: string) {
+    mockComputeModuleApi.getJobRequest.mockResolvedValueOnce({
+      status: HttpStatusCode.Ok,
+      data: {
+        type: "computeModuleJobV1",
+        computeModuleJobV1: {
+          jobId,
+          queryType: "testQuery",
+          query: { name: jobId },
+        },
+      },
+    } as any);
+  }
+
+  describe.each(["response", "default"] as const)("%s handler results", (kind) => {
+    function start(
+      listener: (
+        message: { name: string },
+        context: QueryContext
+      ) => string | Promise<string>
+    ) {
+      mockComputeModuleApi.getJobRequest.mockImplementation(
+        () => new Promise(() => {})
+      );
+      const runner = new QueryRunner<typeof TEST_QUERY_MAPPING>(
+        kind === "response" ? { testQuery: { type: "response", listener } } : {},
+        kind === "default"
+          ? (query, _queryType, context) => listener(query, context)
+          : undefined
+      );
+      void runner.run(mockComputeModuleApi);
+    }
+
+    it.each([false, true])("posts a result with async=%s and preserves context", async (isAsync) => {
+      queueJob("success");
+      start((message, context) => {
+        expect(context).toEqual({ jobId: "success" });
+        expect(queryContextStorage.getStore()).toEqual(context);
+        const result = `Hello, ${message.name}`;
+        return isAsync ? Promise.resolve(result) : result;
+      });
+
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(mockComputeModuleApi.postResult.mock.calls).toEqual([
+        ["success", "Hello, success"],
+      ]);
+    });
+
+    it("processes another job while the first handler is pending", async () => {
+      queueJob("pending");
+      queueJob("next");
+      let completeFirst!: (result: string) => void;
+      const pending = new Promise<string>((resolve) => {
+        completeFirst = resolve;
+      });
+      start((message, context) => {
+        expect(queryContextStorage.getStore()).toEqual(context);
+        return message.name === "pending" ? pending : Promise.resolve("next result");
+      });
+
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(mockComputeModuleApi.postResult.mock.calls).toEqual([
+        ["next", "next result"],
+      ]);
+
+      completeFirst("first result");
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(mockComputeModuleApi.postResult.mock.calls).toEqual([
+        ["next", "next result"],
+        ["pending", "first result"],
+      ]);
+    });
   });
 
   describe("QueryContext", () => {
@@ -344,10 +424,10 @@ describe("QueryRunner", () => {
       );
     });
 
-    it("should convert number responses to string in default listener", async () => {
+    it.each([false, true])("should convert number responses to string in default listener with async=%s", async (isAsync) => {
       const jobId = "number-response-job";
 
-      const defaultListener = jest.fn(async () => 42);
+      const defaultListener = jest.fn(() => (isAsync ? Promise.resolve(42) : 42));
 
       mockComputeModuleApi.getJobRequest
         .mockResolvedValueOnce({
