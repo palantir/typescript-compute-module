@@ -49,7 +49,13 @@ export type ResponseQueryListener<M extends QueryResponseMapping> = <
 >(
   message: Static<M[T]["input"]>,
   context: QueryContext
-) => Promise<Static<M[T]["output"]>>;
+) => Static<M[T]["output"]> | Promise<Static<M[T]["output"]>>;
+
+export type DefaultQueryListener = (
+  query: any,
+  queryType: string,
+  context: QueryContext
+) => any;
 
 export class QueryRunner<M extends QueryResponseMapping> {
   private isResponsive = false;
@@ -60,7 +66,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
     private readonly listeners: Partial<{
       [K in keyof M]: QueryListener<Pick<M, K>>;
     }>,
-    private defaultListener?: (query: any, queryType: string, context: QueryContext) => Promise<any>,
+    private defaultListener?: DefaultQueryListener,
     private readonly logger?: Logger
   ) {}
 
@@ -117,9 +123,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
     this.responsiveEventListeners.forEach((listener) => listener());
   }
 
-  public updateDefaultListener(
-    defaultListener: (query: any, queryType: string, context: QueryContext) => Promise<any>
-  ) {
+  public updateDefaultListener(defaultListener: DefaultQueryListener) {
     this.defaultListener = defaultListener;
   }
 
@@ -133,8 +137,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
     const listener = this.listeners[queryType];
 
     if (listener?.type === "response") {
-      listener
-        .listener(query, context)
+      Promise.resolve(listener.listener(query, context))
         .then((response) => computeModuleApi.postResult(jobId, response))
         .catch((error) => this.handleJobError(computeModuleApi, jobId, "job", error));
     } else if (listener?.type === "streaming") {
@@ -142,7 +145,7 @@ export class QueryRunner<M extends QueryResponseMapping> {
       listener.listener(query, writable, context);
       computeModuleApi.postStreamingResult(jobId, writable);
     } else if (this.defaultListener != null) {
-      this.defaultListener(query, queryType, context)
+      Promise.resolve(this.defaultListener(query, queryType, context))
         .then((response) =>
           computeModuleApi.postResult(
             jobId,

@@ -1,6 +1,10 @@
 import { Type } from "@sinclair/typebox";
 import { HttpStatusCode } from "axios";
-import { QueryRunner, QueryResponseMapping, QueryContext } from "../QueryRunner";
+import {
+  QueryRunner,
+  QueryResponseMapping,
+  QueryContext,
+} from "../QueryRunner";
 import { ComputeModuleApi } from "../api/ComputeModuleApi";
 
 const TEST_QUERY_MAPPING = {
@@ -30,7 +34,7 @@ describe("QueryRunner", () => {
       const receivedContexts: (QueryContext | undefined)[] = [];
 
       const responseListener = jest.fn(
-        async (message: { name: string }, context?: QueryContext) => {
+        (message: { name: string }, context?: QueryContext) => {
           receivedContexts.push(context);
           return `Hello, ${message.name}`;
         }
@@ -70,6 +74,10 @@ describe("QueryRunner", () => {
       );
       expect(receivedContexts).toHaveLength(1);
       expect(receivedContexts[0]).toEqual({ jobId });
+      expect(mockComputeModuleApi.postResult).toHaveBeenCalledWith(
+        jobId,
+        "Hello, World"
+      );
     });
 
     it("should pass QueryContext with jobId to streaming listeners", async () => {
@@ -297,7 +305,7 @@ describe("QueryRunner", () => {
       const receivedQueryTypes: string[] = [];
 
       const defaultListener = jest.fn(
-        async (query: any, queryType: string, context: QueryContext) => {
+        (query: any, queryType: string, context: QueryContext) => {
           receivedContexts.push(context);
           receivedQueryTypes.push(queryType);
           return `Default response for ${queryType}`;
@@ -344,10 +352,10 @@ describe("QueryRunner", () => {
       );
     });
 
-    it("should convert number responses to string in default listener", async () => {
+    it.each([false, true])("should convert number responses to string in default listener with async=%s", async (isAsync) => {
       const jobId = "number-response-job";
 
-      const defaultListener = jest.fn(async () => 42);
+      const defaultListener = jest.fn(() => (isAsync ? Promise.resolve(42) : 42));
 
       mockComputeModuleApi.getJobRequest
         .mockResolvedValueOnce({
